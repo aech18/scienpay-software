@@ -251,7 +251,7 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({ activeTab }) => {
         <div className="space-y-4">
           <PageHeader
             title="Personal Beneficiario de Asignaciones"
-            subtitle="Investigadores y técnicos que reciben estipendios científicos en dólares (USD)."
+            subtitle="Investigadores y personal técnico adscrito a los proyectos."
             icon={<UserCheck className="w-5 h-5 text-secondary dark:text-secondary-light" />}
             actions={
               <Button size="sm" onClick={() => setShowPersonForm(true)}>
@@ -260,16 +260,6 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({ activeTab }) => {
               </Button>
             }
           />
-
-          <div className="p-3.5 rounded-xl bg-slate-100/80 dark:bg-[#252525] border border-[#E9E9E7] dark:border-[#2F2F2F] text-xs text-[#5A5A58] dark:text-[#A4A4A2] flex items-center space-x-2">
-            <span className="font-bold text-primary dark:text-primary-light">
-              📌 Regla de Negocio:
-            </span>
-            <span>
-              Los beneficiarios <strong>NO tienen usuario en el sistema</strong>. Son personas
-              registradas exclusivamente como datos de pago y no tienen credenciales de acceso.
-            </span>
-          </div>
 
           {personsQuery.isLoading && <LoadingState message="Cargando beneficiarios…" />}
           {personsQuery.isError && (
@@ -288,7 +278,6 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({ activeTab }) => {
                     <th className="py-2.5 px-4">Nombre Completo</th>
                     <th className="py-2.5 px-4">Especialidad / Cargo</th>
                     <th className="py-2.5 px-4">Correo Contacto</th>
-                    <th className="py-2.5 px-4">Acceso al Sistema</th>
                     <th className="py-2.5 px-4">Estado</th>
                   </tr>
                 </thead>
@@ -311,11 +300,6 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({ activeTab }) => {
                         {person.email || '—'}
                       </td>
                       <td className="py-3 px-4">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 dark:bg-[#2C2C2C] text-slate-600 dark:text-slate-300">
-                          Solo Datos (Sin Usuario)
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
                         <StatusBadge label={person.status} tone={statusTone(person.status)} />
                       </td>
                     </tr>
@@ -332,7 +316,7 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({ activeTab }) => {
         <div className="space-y-4">
           <PageHeader
             title="Asignaciones y Grupos de Pago"
-            subtitle="Vínculo persona + proyecto + periodicidad con montos exactos en USD y validación de no solapamiento."
+            subtitle="Relación de investigadores por proyecto, periodicidad y monto asignado por período."
             icon={<Layers className="w-5 h-5 text-violet dark:text-violet-light" />}
             actions={
               <>
@@ -452,7 +436,7 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({ activeTab }) => {
         <div className="space-y-6">
           <PageHeader
             title="Motor de Causación y Prorrateo por Días Activos"
-            subtitle="Monto causado = monto del período × (días activos / días totales), con redondeo HALF_UP a 2 decimales."
+            subtitle="Cálculo de montos por período y generación de lotes de causación."
             icon={<FileSpreadsheet className="w-5 h-5 text-violet dark:text-violet-light" />}
           />
 
@@ -471,9 +455,7 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({ activeTab }) => {
               <h3 className="text-sm font-bold text-[#37352F] dark:text-white">
                 Lotes de Causación Registrados
               </h3>
-              <span className="text-[11px] text-[#9B9A97]">
-                {batches.length} lote(s) · inmutables salvo anulación auditada
-              </span>
+              <span className="text-[11px] text-[#9B9A97]">{batches.length} lote(s)</span>
             </div>
 
             {batchesQuery.isLoading && <LoadingState message="Cargando lotes…" />}
@@ -555,7 +537,7 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({ activeTab }) => {
         <div className="space-y-4">
           <PageHeader
             title="Mis Solicitudes de Pago"
-            subtitle="Ciclo de estados: BORRADOR → ENVIADA → APROBADA/RECHAZADA → ENTREGADA → CERRADA."
+            subtitle="Solicitudes emitidas y seguimiento de su estado de aprobación."
             icon={<FileText className="w-5 h-5 text-accent dark:text-accent-light" />}
             actions={
               <Button

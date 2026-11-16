@@ -11,9 +11,7 @@ test.describe('Vistas y navegación por rol', () => {
     await expect(page.getByRole('button', { name: /Proyectos Científicos/ })).toHaveCount(0);
 
     await page.getByRole('button', { name: /Registro de Auditoría/ }).click();
-    await expect(
-      page.getByRole('heading', { name: /Registro de Auditoría Append-Only/ }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Registro de Auditoría/ })).toBeVisible();
   });
 
   test('GENERADOR navega proyectos, asignaciones y causación', async ({ page }) => {
@@ -44,9 +42,7 @@ test.describe('Vistas y navegación por rol', () => {
     await expect(page.getByRole('button', { name: /Usuarios y Roles/ })).toHaveCount(0);
 
     await page.getByRole('button', { name: /Entregas de Fondos/ }).click();
-    await expect(
-      page.getByRole('heading', { name: /Entregas de Fondos con Imputación FIFO/ }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Entregas de Fondos/ })).toBeVisible();
 
     await page.getByRole('button', { name: /Cajas Chicas/ }).click();
     await expect(

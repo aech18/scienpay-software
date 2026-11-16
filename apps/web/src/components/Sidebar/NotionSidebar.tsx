@@ -16,7 +16,6 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
-  Shield,
   Layers,
 } from 'lucide-react';
 
@@ -42,33 +41,23 @@ export const NotionSidebar: React.FC<NotionSidebarProps> = ({
     switch (currentUser.role) {
       case UserRole.ADMIN:
         return [
-          { id: 'usuarios', label: 'Usuarios y Roles', icon: Users, badge: 'Seguridad' },
+          { id: 'usuarios', label: 'Usuarios y Roles', icon: Users },
           { id: 'parametros', label: 'Parámetros del Sistema', icon: Sliders },
-          { id: 'auditoria', label: 'Registro de Auditoría', icon: FileText, badge: 'Inmutable' },
+          { id: 'auditoria', label: 'Registro de Auditoría', icon: FileText },
         ];
       case UserRole.GENERADOR:
         return [
           { id: 'proyectos', label: 'Proyectos Científicos', icon: FolderKanban },
-          {
-            id: 'beneficiarios',
-            label: 'Personal (Beneficiarios)',
-            icon: UserCheck,
-            badge: 'Sin cuenta',
-          },
+          { id: 'beneficiarios', label: 'Personal (Beneficiarios)', icon: UserCheck },
           { id: 'asignaciones', label: 'Asignaciones y Grupos', icon: Layers },
           { id: 'causacion', label: 'Motor de Causación', icon: FileSpreadsheet },
           { id: 'solicitudes_creadas', label: 'Mis Solicitudes', icon: FileText },
         ];
       case UserRole.RECEPTOR:
         return [
-          {
-            id: 'solicitudes_bandeja',
-            label: 'Bandeja de Aprobación',
-            icon: CheckCircle2,
-            badge: '4 Ojos',
-          },
-          { id: 'pagos_fifo', label: 'Entregas de Fondos (FIFO)', icon: DollarSign },
-          { id: 'recibos', label: 'Recibos Inmutables', icon: Receipt },
+          { id: 'solicitudes_bandeja', label: 'Bandeja de Aprobación', icon: CheckCircle2 },
+          { id: 'pagos_fifo', label: 'Entregas de Fondos', icon: DollarSign },
+          { id: 'recibos', label: 'Recibos de Pago', icon: Receipt },
           { id: 'caja_chica', label: 'Cajas Chicas', icon: PiggyBank },
         ];
       default:
@@ -101,10 +90,10 @@ export const NotionSidebar: React.FC<NotionSidebarProps> = ({
             </div>
             <div className="truncate">
               <div className="text-xs font-bold text-[#37352F] dark:text-white truncate">
-                Scienpay Workspace
+                Scienpay
               </div>
               <div className="text-[10px] text-[#9B9A97] dark:text-[#888886] truncate">
-                Física • Química • Biología
+                Universidad de Carabobo - FACYT
               </div>
             </div>
           </div>
@@ -174,12 +163,6 @@ export const NotionSidebar: React.FC<NotionSidebarProps> = ({
 
       {/* Lista de navegación de módulos */}
       <nav className="flex-1 overflow-y-auto p-2 space-y-0.5">
-        {!collapsed && (
-          <div className="px-2 py-1 text-[10px] font-bold text-[#9B9A97] dark:text-[#787774] uppercase tracking-wider">
-            Vistas del Rol
-          </div>
-        )}
-
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -187,7 +170,7 @@ export const NotionSidebar: React.FC<NotionSidebarProps> = ({
             <button
               key={item.id}
               onClick={() => onSelectTab(item.id)}
-              className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded text-xs transition ${
+              className={`w-full flex items-center space-x-2.5 px-2.5 py-2 rounded-md text-xs transition ${
                 isActive
                   ? 'bg-[#EAE9E5] dark:bg-[#2C2C2C] text-[#37352F] dark:text-white font-semibold'
                   : 'text-[#5A5A58] dark:text-[#A4A4A2] hover:bg-[#EDEDEB] dark:hover:bg-[#272727] hover:text-[#37352F] dark:hover:text-white'
@@ -195,40 +178,24 @@ export const NotionSidebar: React.FC<NotionSidebarProps> = ({
               title={collapsed ? item.label : undefined}
             >
               <Icon className="w-4 h-4 flex-shrink-0 text-[#787774] dark:text-[#9B9A97]" />
-              {!collapsed && (
-                <div className="flex-1 flex items-center justify-between truncate">
-                  <span className="truncate">{item.label}</span>
-                  {item.badge && (
-                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-200/80 dark:bg-[#2F2F2F] text-slate-700 dark:text-slate-300 font-normal">
-                      {item.badge}
-                    </span>
-                  )}
-                </div>
-              )}
+              {!collapsed && <span className="truncate">{item.label}</span>}
             </button>
           );
         })}
       </nav>
 
-      {/* Pie de barra lateral con selector de tema, aviso de segregación y botón de logout */}
+      {/* Pie de barra lateral */}
       <div className="p-3 border-t border-[#EDEDEB] dark:border-[#2B2B2B] space-y-2">
         {!collapsed ? (
           <div className="flex items-center justify-between px-1">
             <span className="text-[10px] text-[#787774] dark:text-[#888886] font-medium">
-              Tema visual
+              Apariencia
             </span>
             <ThemeToggle compact />
           </div>
         ) : (
           <div className="flex justify-center">
             <ThemeToggle compact />
-          </div>
-        )}
-
-        {!collapsed && (
-          <div className="p-2 rounded bg-slate-100/70 dark:bg-[#222222] border border-[#E9E9E7] dark:border-[#2B2B2B] text-[10px] text-[#787774] dark:text-[#9B9A97] flex items-center space-x-1.5">
-            <Shield className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-            <span className="truncate">Segregación estricta de funciones</span>
           </div>
         )}
 

@@ -314,7 +314,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab }) => {
         <div className="space-y-4">
           <PageHeader
             title="Parámetros Globales del Sistema"
-            subtitle="Configuraciones inmutables de moneda, redondeo contable y políticas de sesión."
+            subtitle="Configuración general de moneda, cálculo financiero y sesiones activas."
             icon={<Sliders className="w-5 h-5 text-primary dark:text-primary-light" />}
           />
 
@@ -323,15 +323,15 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab }) => {
               <div className="flex items-center space-x-2 text-primary dark:text-primary-light mb-2">
                 <Database className="w-4 h-4" />
                 <span className="font-semibold text-xs text-[#37352F] dark:text-white">
-                  Moneda Oficial
+                  Moneda de Operación
                 </span>
               </div>
               <div className="text-lg font-bold text-[#37352F] dark:text-white">
-                Dólares Americanos (USD)
+                Dólares Estadounidenses (USD)
               </div>
               <p className="text-[11px] text-[#787774] dark:text-[#9B9A97] mt-1">
-                Almacenamiento exacto con columna PostgreSQL{' '}
-                <code className="bg-slate-100 dark:bg-[#2C2C2C] px-1 rounded">NUMERIC(14,2)</code>.
+                Todos los presupuestos, asignaciones y desembolsos se registran en dólares sin
+                deducciones.
               </p>
             </div>
 
@@ -339,16 +339,15 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab }) => {
               <div className="flex items-center space-x-2 text-violet dark:text-violet-light mb-2">
                 <Sliders className="w-4 h-4" />
                 <span className="font-semibold text-xs text-[#37352F] dark:text-white">
-                  Política de Redondeo
+                  Criterio de Prorrateo
                 </span>
               </div>
-              <div className="text-lg font-bold text-[#37352F] dark:text-white">HALF_UP</div>
+              <div className="text-lg font-bold text-[#37352F] dark:text-white">
+                2 Decimales (Estándar)
+              </div>
               <p className="text-[11px] text-[#787774] dark:text-[#9B9A97] mt-1">
-                Redondeo a 2 decimales con desempate hacia arriba, aplicado por{' '}
-                <code className="bg-slate-100 dark:bg-[#2C2C2C] px-1 rounded">
-                  CausationCalculator
-                </code>
-                .
+                Cálculo proporcional diario según los días activos de cada asignación dentro del
+                período.
               </p>
             </div>
 
@@ -356,18 +355,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab }) => {
               <div className="flex items-center space-x-2 text-emerald-600 dark:text-emerald-400 mb-2">
                 <Lock className="w-4 h-4" />
                 <span className="font-semibold text-xs text-[#37352F] dark:text-white">
-                  Seguridad de Sesión
+                  Política de Acceso
                 </span>
               </div>
               <div className="text-lg font-bold text-[#37352F] dark:text-white">
-                15 min JWT + Cookie 7d
+                Sesión de 15 minutos
               </div>
               <p className="text-[11px] text-[#787774] dark:text-[#9B9A97] mt-1">
-                Refresh tokens rotativos con banderas{' '}
-                <code className="bg-slate-100 dark:bg-[#2C2C2C] px-1 rounded">
-                  HttpOnly, SameSite
-                </code>{' '}
-                y detección de replay.
+                Renovación automática durante actividad y bloqueo preventivo ante intentos fallidos.
               </p>
             </div>
           </div>
@@ -377,10 +372,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab }) => {
       {activeTab === 'auditoria' && (
         <div className="space-y-4">
           <PageHeader
-            title="Registro de Auditoría Append-Only (audit_log)"
-            subtitle="Bitácora legal inalterable protegida por triggers de base de datos anti-UPDATE y anti-DELETE."
+            title="Registro de Auditoría del Sistema"
+            subtitle="Historial cronológico de operaciones registradas en el sistema."
             icon={<FileText className="w-5 h-5 text-secondary dark:text-secondary-light" />}
-            actions={<StatusBadge label="Integridad Verificada" tone="green" />}
           />
 
           <form

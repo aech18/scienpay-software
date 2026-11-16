@@ -130,14 +130,9 @@ export const CausationForm: React.FC<CausationFormProps> = ({
             onClick={handleGenerate}
             disabled={generate.isPending || !previewMatches}
           >
-            {generate.isPending ? 'Generando…' : 'Generar y Congelar Lote'}
+            {generate.isPending ? 'Generando…' : 'Generar Lote'}
           </Button>
         </FormActions>
-
-        <p className="text-[10px] text-[#9B9A97] dark:text-[#888886]">
-          Fórmula: monto causado = monto del período × (días activos / días totales), con redondeo
-          HALF_UP a 2 decimales. El lote generado es inmutable.
-        </p>
       </div>
 
       <div className="xl:col-span-7 bg-white dark:bg-[#202020] p-5 rounded-xl border border-[#E9E9E7] dark:border-[#2F2F2F] shadow-[0_1px_2px_rgba(0,0,0,0.02)]">

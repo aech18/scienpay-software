@@ -124,7 +124,7 @@ export const App: React.FC = () => {
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         <header className="h-12 border-b border-[#EDEDEB] dark:border-[#2F2F2F] px-6 flex items-center justify-between bg-white/80 dark:bg-[#1C1C1C]/90 backdrop-blur sticky top-0 z-10 transition-colors">
           <div className="flex items-center space-x-2 text-xs text-[#787774] dark:text-[#9B9A97]">
-            <span className="font-medium">Scienpay</span>
+            <span className="font-medium">Scienpay — Universidad de Carabobo - FACYT</span>
             <span>/</span>
             <span className="font-semibold text-[#37352F] dark:text-white capitalize">
               {activeTab.replace(/_/g, ' ')}

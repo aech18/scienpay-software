@@ -374,8 +374,8 @@ export const ReceptorView: React.FC<ReceptorViewProps> = ({ activeTab }) => {
       {activeTab === 'pagos_fifo' && (
         <div className="space-y-4">
           <PageHeader
-            title="Entregas de Fondos con Imputación FIFO"
-            subtitle="Los pagos se aplican estrictamente sobre la causación pendiente más antigua del investigador, dentro de una transacción con bloqueo."
+            title="Entregas de Fondos y Desembolsos"
+            subtitle="Registro de pagos totales o parciales sobre solicitudes aprobadas."
             icon={<DollarSign className="w-5 h-5 text-primary dark:text-primary-light" />}
           />
 
@@ -392,87 +392,41 @@ export const ReceptorView: React.FC<ReceptorViewProps> = ({ activeTab }) => {
           )}
 
           {selectedApprovedRequest && (
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-              <div className="xl:col-span-8 bg-white dark:bg-[#202020] p-5 rounded-xl border border-[#E9E9E7] dark:border-[#2F2F2F] shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-                  <h3 className="font-bold text-sm text-[#37352F] dark:text-white">
-                    Registrar Desembolso de Fondos
-                  </h3>
-                  <div className="w-64">
-                    <SelectInput
-                      value={selectedApprovedRequest.id}
-                      onChange={(event) => setSelectedApprovedId(event.target.value)}
-                    >
-                      {approvedRequests.map((request) => (
-                        <option key={request.id} value={request.id}>
-                          {request.requestCode} — ${formatCurrency(request.totalAmountUSD)}
-                        </option>
-                      ))}
-                    </SelectInput>
-                  </div>
-                </div>
-
-                {batchDetailQuery.isLoading && (
-                  <LoadingState message="Cargando lote de causación…" />
-                )}
-                {batchDetailQuery.isError && (
-                  <ErrorState
-                    message={getApiErrorMessage(batchDetailQuery.error)}
-                    onRetry={() => void batchDetailQuery.refetch()}
-                  />
-                )}
-                {batchDetailQuery.data && (
-                  <DisbursementForm
-                    key={selectedApprovedRequest.id}
-                    request={selectedApprovedRequest}
-                    batch={batchDetailQuery.data}
-                    persons={persons}
-                    onSuccess={() => setSelectedApprovedId(null)}
-                  />
-                )}
-              </div>
-
-              <div className="xl:col-span-4 bg-white dark:bg-[#202020] p-5 rounded-xl border border-[#E9E9E7] dark:border-[#2F2F2F] shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-                <h3 className="font-bold text-sm text-[#37352F] dark:text-white mb-3">
-                  Algoritmo FIFO en Servidor
+            <div className="bg-white dark:bg-[#202020] p-5 rounded-xl border border-[#E9E9E7] dark:border-[#2F2F2F] shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                <h3 className="font-bold text-sm text-[#37352F] dark:text-white">
+                  Registrar Desembolso de Fondos
                 </h3>
-                <div className="space-y-3 text-xs text-[#5A5A58] dark:text-[#A4A4A2]">
-                  <div className="p-3 rounded-lg bg-[#F7F6F3] dark:bg-[#262626] border border-[#E9E9E7] dark:border-[#333333]">
-                    <span className="font-bold text-[#37352F] dark:text-white block mb-1">
-                      1. Cola de Deudas:
-                    </span>
-                    <span>
-                      Las causaciones se ordenan por{' '}
-                      <code className="bg-white dark:bg-[#1E1E1E] px-1 rounded text-primary">
-                        period_start_date ASC, id ASC
-                      </code>
-                      .
-                    </span>
-                  </div>
-                  <div className="p-3 rounded-lg bg-[#F7F6F3] dark:bg-[#262626] border border-[#E9E9E7] dark:border-[#333333]">
-                    <span className="font-bold text-[#37352F] dark:text-white block mb-1">
-                      2. Amortización Progresiva:
-                    </span>
-                    <span>
-                      Se salda cada cuota hasta agotar el monto entregado. Se generan registros
-                      inmutables en{' '}
-                      <code className="bg-white dark:bg-[#1E1E1E] px-1 rounded text-primary">
-                        receipt_allocations
-                      </code>
-                      .
-                    </span>
-                  </div>
-                  <div className="p-3 rounded-lg bg-[#F7F6F3] dark:bg-[#262626] border border-[#E9E9E7] dark:border-[#333333]">
-                    <span className="font-bold text-[#37352F] dark:text-white block mb-1">
-                      3. Secuencia sin Huecos:
-                    </span>
-                    <span>
-                      El recibo consume el siguiente número de la secuencia PostgreSQL atómica
-                      dentro de la misma transacción.
-                    </span>
-                  </div>
+                <div className="w-64">
+                  <SelectInput
+                    value={selectedApprovedRequest.id}
+                    onChange={(event) => setSelectedApprovedId(event.target.value)}
+                  >
+                    {approvedRequests.map((request) => (
+                      <option key={request.id} value={request.id}>
+                        {request.requestCode} — ${formatCurrency(request.totalAmountUSD)}
+                      </option>
+                    ))}
+                  </SelectInput>
                 </div>
               </div>
+
+              {batchDetailQuery.isLoading && <LoadingState message="Cargando lote de causación…" />}
+              {batchDetailQuery.isError && (
+                <ErrorState
+                  message={getApiErrorMessage(batchDetailQuery.error)}
+                  onRetry={() => void batchDetailQuery.refetch()}
+                />
+              )}
+              {batchDetailQuery.data && (
+                <DisbursementForm
+                  key={selectedApprovedRequest.id}
+                  request={selectedApprovedRequest}
+                  batch={batchDetailQuery.data}
+                  persons={persons}
+                  onSuccess={() => setSelectedApprovedId(null)}
+                />
+              )}
             </div>
           )}
 
@@ -533,10 +487,9 @@ export const ReceptorView: React.FC<ReceptorViewProps> = ({ activeTab }) => {
       {activeTab === 'recibos' && (
         <div className="space-y-4">
           <PageHeader
-            title="Recibos Individuales Inmutables"
-            subtitle="Documentos de entrega legal con secuencia transaccional estricta sin saltos ni huecos."
+            title="Recibos de Pago Emitidos"
+            subtitle="Comprobantes individuales generados por cada desembolso."
             icon={<Receipt className="w-5 h-5 text-violet dark:text-violet-light" />}
-            actions={<StatusBadge label="Numeración Correlativa Activa" tone="violet" />}
           />
 
           {receiptsQuery.isLoading && <LoadingState message="Cargando recibos…" />}
@@ -613,7 +566,7 @@ export const ReceptorView: React.FC<ReceptorViewProps> = ({ activeTab }) => {
         <div className="space-y-4">
           <PageHeader
             title="Control Mensual de Cajas Chicas"
-            subtitle="Flujo: apertura del mes → vales autorizados → rendición con comprobantes → arrastre de saldo."
+            subtitle="Gestión de períodos mensuales, emisión de vales y registro de rendiciones."
             icon={<PiggyBank className="w-5 h-5 text-amber-700 dark:text-amber-400" />}
             actions={
               <>

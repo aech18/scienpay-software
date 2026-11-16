@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { X, FolderKanban, Layers, FileText, Calendar, Shield } from 'lucide-react';
+import { X, FolderKanban, Layers, FileText, Calendar } from 'lucide-react';
 import type { Assignment, PaymentRequest, Project } from '../../types/api.types.js';
 import { formatCurrency, formatDate } from '../../lib/format.js';
 import { StatusBadge, statusTone } from '../ui/Feedback.js';
@@ -101,19 +101,15 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ modalData, onC
                 </div>
               </div>
 
-              <div className="p-4 rounded-xl bg-gradient-to-br from-primary/5 to-transparent dark:from-primary/10 border border-primary/20 space-y-2">
+              <div className="p-4 rounded-xl bg-gradient-to-br from-primary/5 to-transparent dark:from-primary/10 border border-primary/20">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] text-[#787774] dark:text-[#9B9A97]">
-                    Presupuesto Asignado en Divisas:
+                    Presupuesto Asignado:
                   </span>
                   <span className="font-mono text-base font-bold text-primary dark:text-primary-light">
                     ${formatCurrency(modalData.data.budgetUSD)} USD
                   </span>
                 </div>
-                <p className="text-[10px] text-[#9B9A97] dark:text-[#888886]">
-                  Moneda base inmutable: USD. Todos los pagos, asignaciones y rendiciones imputan
-                  directamente a esta partida.
-                </p>
               </div>
 
               <div className="space-y-2">
@@ -150,14 +146,6 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ modalData, onC
                   {modalData.data.description}
                 </div>
               )}
-
-              <div className="p-3 rounded-xl bg-slate-100/70 dark:bg-[#242424] border border-[#E9E9E7] dark:border-[#333333] text-[11px] text-[#5A5A58] dark:text-[#9B9A97] flex items-start space-x-2">
-                <Shield className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
-                <span>
-                  <strong>Regla de Negocio:</strong> el solapamiento de asignaciones de una misma
-                  persona en este proyecto es rechazado automáticamente por el motor financiero.
-                </span>
-              </div>
             </div>
           )}
 
@@ -186,20 +174,15 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ modalData, onC
                 </div>
               </div>
 
-              <div className="p-4 rounded-xl bg-violet-50/60 dark:bg-violet-950/20 border border-violet-200 dark:border-violet-900/40 space-y-2">
+              <div className="p-4 rounded-xl bg-violet-50/60 dark:bg-violet-950/20 border border-violet-200 dark:border-violet-900/40">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] text-[#787774] dark:text-[#9B9A97]">
-                    Estipendio por Período:
+                    Monto por Período:
                   </span>
                   <span className="font-mono text-base font-bold text-violet dark:text-violet-300">
                     ${formatCurrency(modalData.data.amountPerPeriod)} {modalData.data.currency}
                   </span>
                 </div>
-                <p className="text-[10px] text-slate-500 dark:text-[#888886]">
-                  Fórmula de prorrateo:{' '}
-                  <code>monto_causado = monto_periodo × dias_activos / dias_periodo</code> (redondeo
-                  HALF_UP a 2 decimales).
-                </p>
               </div>
 
               <div className="p-3 rounded-xl bg-[#F7F6F3] dark:bg-[#262626] border border-[#E9E9E7] dark:border-[#333333] space-y-1 text-[11px]">

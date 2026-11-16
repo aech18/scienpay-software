@@ -1,22 +1,50 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { loginSchema, type LoginInput } from '@scienpay/shared';
-import { AlertTriangle, Eye, EyeOff, Lock, ShieldAlert, User } from 'lucide-react';
+import { UserRole, loginSchema, type LoginInput } from '@scienpay/shared';
+import {
+  AlertTriangle,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Eye,
+  EyeOff,
+  Lock,
+  ShieldAlert,
+  User,
+} from 'lucide-react';
 import { ThemeToggle } from '../../context/ThemeContext.js';
 import { useAuth } from '../../context/AuthContext.js';
 import { getApiErrorMessage } from '../../lib/apiClient.js';
 import { zodResolver } from '../../lib/zodResolver.js';
 
-/**
- * Pantalla de inicio de sesión real (HANDOFF 3.2).
- *
- * El bloqueo por intentos fallidos lo aplica el backend
- * (`AccountSecurityPolicy`); la interfaz solo muestra el mensaje devuelto.
- * No existen credenciales de prueba ni datos simulados en el cliente.
- */
+const DEMO_ACCOUNTS = [
+  {
+    role: UserRole.ADMIN,
+    username: 'admin',
+    fullName: 'Lic. Carlos Mendoza — Administrador del Sistema',
+    password: 'Admin#Scienpay2026!',
+    badgeClass: 'bg-violet-100 text-violet dark:bg-violet-950/60 dark:text-violet-300',
+  },
+  {
+    role: UserRole.GENERADOR,
+    username: 'generador',
+    fullName: 'Dra. Elena Rostova — Coordinadora General de Proyectos',
+    password: 'Coord#Scienpay2026!',
+    badgeClass: 'bg-blue-100 text-primary dark:bg-blue-950/60 dark:text-blue-300',
+  },
+  {
+    role: UserRole.RECEPTOR,
+    username: 'receptor',
+    fullName: 'Mg. Roberto Silva — Gerente de Administración y Finanzas',
+    password: 'Finan#Scienpay2026!',
+    badgeClass: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300',
+  },
+] as const;
+
 export const NotionLogin: React.FC = () => {
   const { login } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
+  const [showQuickAccess, setShowQuickAccess] = useState(true);
   const [serverError, setServerError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -71,7 +99,7 @@ export const NotionLogin: React.FC = () => {
             Iniciar Sesión en Scienpay
           </h1>
           <p className="text-xs text-[#787774] dark:text-[#9B9A97] mt-1.5">
-            Sistema de Control de Pagos y Asignaciones Científicas
+            Scienpay — Universidad de Carabobo - FACYT
           </p>
         </div>
 
@@ -138,7 +166,6 @@ export const NotionLogin: React.FC = () => {
                 >
                   Contraseña
                 </label>
-                <span className="text-[10px] text-[#9B9A97]">Mínimo 12 car.</span>
               </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#9B9A97]">
@@ -182,16 +209,61 @@ export const NotionLogin: React.FC = () => {
               <span>{isSubmitting ? 'Verificando…' : 'Ingresar'}</span>
             </button>
           </form>
-
-          <p className="mt-4 pt-3 border-t border-[#EDEDEB] dark:border-[#2F2F2F] text-[10px] leading-relaxed text-[#9B9A97] dark:text-[#888886]">
-            Tras 3 intentos fallidos la cuenta se suspende 5 minutos. Un cuarto intento la bloquea
-            definitivamente y solo el Administrador del Sistema puede restaurarla.
-          </p>
         </div>
 
-        {/* Pie de página Notion */}
-        <div className="text-center mt-6 text-[11px] text-[#9B9A97]">
-          Scienpay • Universidad de Carabobo • Seguridad ASVS Nivel 2
+        {/* Selector Rápido de Perfiles Demostrativos */}
+        <div className="mt-4 bg-white dark:bg-[#202020] rounded-xl border border-[#E9E9E7] dark:border-[#2F2F2F] shadow-[0_1px_2px_rgba(0,0,0,0.03)] overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setShowQuickAccess(!showQuickAccess)}
+            className="w-full px-4 py-2.5 text-left flex items-center justify-between text-xs font-medium text-[#787774] dark:text-[#9B9A97] hover:bg-[#F7F6F3] dark:hover:bg-[#262626] transition"
+          >
+            <span>Acceso rápido por perfil (Demostración)</span>
+            {showQuickAccess ? (
+              <ChevronUp className="w-4 h-4" />
+            ) : (
+              <ChevronDown className="w-4 h-4" />
+            )}
+          </button>
+
+          {showQuickAccess && (
+            <div className="px-4 pb-3.5 pt-2 space-y-2 border-t border-[#EDEDEB] dark:border-[#2F2F2F] bg-[#FBFBFA]/50 dark:bg-[#1C1C1C]">
+              {DEMO_ACCOUNTS.map((account) => (
+                <button
+                  key={account.username}
+                  type="button"
+                  onClick={() => {
+                    setServerError('');
+                    form.setValue('identifier', account.username, { shouldValidate: true });
+                    form.setValue('password', account.password, { shouldValidate: true });
+                  }}
+                  className="w-full text-left p-2.5 rounded-lg border border-[#E9E9E7] dark:border-[#2F2F2F] bg-white dark:bg-[#252525] hover:border-primary/50 cursor-pointer transition flex items-center justify-between text-xs"
+                >
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <span
+                        className={`font-semibold px-1.5 py-0.5 rounded text-[10px] ${account.badgeClass}`}
+                      >
+                        {account.role}
+                      </span>
+                      <span className="font-medium text-[#37352F] dark:text-white">
+                        {account.username}
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-[#787774] dark:text-[#9B9A97] mt-0.5">
+                      {account.fullName}
+                    </div>
+                  </div>
+                  <Check className="w-3.5 h-3.5 text-slate-400 opacity-60" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Pie de página */}
+        <div className="text-center mt-5 text-[11px] text-[#9B9A97]">
+          Scienpay — Universidad de Carabobo - FACYT
         </div>
       </div>
     </div>
