@@ -3,10 +3,14 @@ import { DatabaseService } from '../../infrastructure/database/database.service.
 import { projects } from '../../infrastructure/database/schema.js';
 import { CreateProjectInput, UpdateProjectInput } from '@scienpay/shared';
 import { eq } from 'drizzle-orm';
+import { AuditService, type AuditActor } from '../audit/audit.service.js';
 
 @Injectable()
 export class ProjectsService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async listProjects() {
     return this.databaseService.db.select().from(projects).orderBy(projects.code);
@@ -25,7 +29,7 @@ export class ProjectsService {
     return project;
   }
 
-  async createProject(input: CreateProjectInput) {
+  async createProject(input: CreateProjectInput, actor: AuditActor) {
     const existing = await this.databaseService.db
       .select({ id: projects.id })
       .from(projects)
@@ -50,11 +54,30 @@ export class ProjectsService {
       })
       .returning();
 
+    await this.auditService.recordEvent({
+      userId: actor.userId,
+      userEmail: actor.userEmail,
+      userRole: actor.userRole,
+      action: 'CREACION_PROYECTO',
+      entity: 'projects',
+      entityId: created.id,
+      oldValues: null,
+      newValues: {
+        code: created.code,
+        name: created.name,
+        area: created.area,
+        scope: created.scope,
+        startDate: created.startDate,
+        endDate: created.endDate,
+      },
+      ipAddress: actor.ipAddress,
+    });
+
     return created;
   }
 
-  async updateProject(id: string, input: UpdateProjectInput) {
-    await this.getProjectById(id);
+  async updateProject(id: string, input: UpdateProjectInput, actor: AuditActor) {
+    const previous = await this.getProjectById(id);
 
     const [updated] = await this.databaseService.db
       .update(projects)
@@ -64,6 +87,34 @@ export class ProjectsService {
       })
       .where(eq(projects.id, id))
       .returning();
+
+    await this.auditService.recordEvent({
+      userId: actor.userId,
+      userEmail: actor.userEmail,
+      userRole: actor.userRole,
+      action: 'ACTUALIZACION_PROYECTO',
+      entity: 'projects',
+      entityId: id,
+      oldValues: {
+        code: previous.code,
+        name: previous.name,
+        description: previous.description,
+        area: previous.area,
+        scope: previous.scope,
+        startDate: previous.startDate,
+        endDate: previous.endDate,
+      },
+      newValues: {
+        code: updated.code,
+        name: updated.name,
+        description: updated.description,
+        area: updated.area,
+        scope: updated.scope,
+        startDate: updated.startDate,
+        endDate: updated.endDate,
+      },
+      ipAddress: actor.ipAddress,
+    });
 
     return updated;
   }

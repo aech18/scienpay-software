@@ -23,12 +23,16 @@ import {
 import { PaymentRequestStateMachine } from '../../domain/payment-requests/payment-request-state-machine.js';
 import { RolePermissionsPolicy } from '../../domain/security/role-permissions.policy.js';
 import { PdfReceiptGenerator } from '../../infrastructure/pdf/pdf-receipt.generator.js';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, sql } from 'drizzle-orm';
 import { Decimal } from 'decimal.js';
+import { AuditService, type AuditActor } from '../audit/audit.service.js';
 
 @Injectable()
 export class PaymentRequestsService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async listRequests(projectId?: string) {
     if (projectId) {
@@ -144,7 +148,7 @@ export class PaymentRequestsService {
     };
   }
 
-  async createRequest(input: CreatePaymentRequestInput, userId: string) {
+  async createRequest(input: CreatePaymentRequestInput, actor: AuditActor) {
     // 1. Obtener lote de causación
     const [batch] = await this.databaseService.db
       .select()
@@ -182,29 +186,63 @@ export class PaymentRequestsService {
 
     // 5. Generar código correlativo de solicitud: SOL-YYYY-NNN
     const year = new Date().getFullYear();
-    const countResult = await this.databaseService.db
-      .select({ id: paymentRequests.id })
-      .from(paymentRequests);
-    const nextNum = (countResult.length + 1).toString().padStart(3, '0');
-    const requestCode = `SOL-${year}-${nextNum}`;
 
-    const [created] = await this.databaseService.db
-      .insert(paymentRequests)
-      .values({
-        requestCode,
-        projectId: input.projectId,
-        causationBatchId: input.causationBatchId,
-        periodDescription: input.periodDescription || `${batch.periodStartDate} al ${batch.periodEndDate}`,
-        totalAmountUSD: requestedAmount.toFixed(2),
-        status: PaymentRequestStatus.BORRADOR,
-        createdByUserId: userId,
-      })
-      .returning();
+    return this.databaseService.db.transaction(async (tx) => {
+      const sequenceResult = await tx.execute(
+        sql`SELECT next_request_number(${year}) AS next_number`,
+      );
+      const nextNumber = Number((sequenceResult as any)[0]?.next_number ?? 0);
 
-    return created;
+      if (!Number.isFinite(nextNumber) || nextNumber <= 0) {
+        throw new ConflictException(
+          'SECUENCIA_SOLICITUD_INVALIDA: No se pudo reservar el numero de solicitud',
+        );
+      }
+
+      const requestCode = `SOL-${year}-${nextNumber.toString().padStart(3, '0')}`;
+
+      const [created] = await tx
+        .insert(paymentRequests)
+        .values({
+          requestCode,
+          projectId: input.projectId,
+          causationBatchId: input.causationBatchId,
+          periodDescription:
+            input.periodDescription || `${batch.periodStartDate} al ${batch.periodEndDate}`,
+          totalAmountUSD: requestedAmount.toFixed(2),
+          notes: input.notes || '',
+          status: PaymentRequestStatus.BORRADOR,
+          createdByUserId: actor.userId!,
+        })
+        .returning();
+
+      await this.auditService.recordEvent(
+        {
+          userId: actor.userId,
+          userEmail: actor.userEmail,
+          userRole: actor.userRole,
+          action: 'CREACION_SOLICITUD',
+          entity: 'payment_requests',
+          entityId: created.id,
+          oldValues: null,
+          newValues: {
+            requestCode: created.requestCode,
+            projectId: created.projectId,
+            causationBatchId: created.causationBatchId,
+            totalAmountUSD: created.totalAmountUSD,
+            notes: created.notes,
+            status: created.status,
+          },
+          ipAddress: actor.ipAddress,
+        },
+        tx,
+      );
+
+      return created;
+    });
   }
 
-  async sendRequest(id: string, userId: string) {
+  async sendRequest(id: string, actor: AuditActor) {
     const request = await this.getRequestById(id);
 
     PaymentRequestStateMachine.assertValidTransition(
@@ -221,10 +259,27 @@ export class PaymentRequestsService {
       .where(eq(paymentRequests.id, id))
       .returning();
 
+    await this.auditService.recordEvent({
+      userId: actor.userId,
+      userEmail: actor.userEmail,
+      userRole: actor.userRole,
+      action: 'ENVIO_SOLICITUD',
+      entity: 'payment_requests',
+      entityId: id,
+      oldValues: { status: request.status },
+      newValues: { status: updated.status },
+      ipAddress: actor.ipAddress,
+    });
+
     return updated;
   }
 
-  async approveRequest(id: string, reviewerUserId: string, reviewerRole: UserRole) {
+  async approveRequest(
+    id: string,
+    reviewerUserId: string,
+    reviewerRole: UserRole,
+    actor: AuditActor,
+  ) {
     const request = await this.getRequestById(id);
 
     // 1. REGLA DE CUATRO OJOS (ADR-006 & Especificación)
@@ -257,6 +312,22 @@ export class PaymentRequestsService {
       .where(eq(paymentRequests.id, id))
       .returning();
 
+    await this.auditService.recordEvent({
+      userId: actor.userId,
+      userEmail: actor.userEmail,
+      userRole: actor.userRole,
+      action: 'APROBACION_SOLICITUD',
+      entity: 'payment_requests',
+      entityId: id,
+      oldValues: { status: request.status },
+      newValues: {
+        status: updated.status,
+        reviewedByUserId: updated.reviewedByUserId,
+        reviewedAt: updated.reviewedAt,
+      },
+      ipAddress: actor.ipAddress,
+    });
+
     return updated;
   }
 
@@ -265,6 +336,7 @@ export class PaymentRequestsService {
     reviewerUserId: string,
     reviewerRole: UserRole,
     input: RejectPaymentRequestInput,
+    actor: AuditActor,
   ) {
     const request = await this.getRequestById(id);
 
@@ -289,10 +361,27 @@ export class PaymentRequestsService {
       .where(eq(paymentRequests.id, id))
       .returning();
 
+    await this.auditService.recordEvent({
+      userId: actor.userId,
+      userEmail: actor.userEmail,
+      userRole: actor.userRole,
+      action: 'RECHAZO_SOLICITUD',
+      entity: 'payment_requests',
+      entityId: id,
+      oldValues: { status: request.status },
+      newValues: {
+        status: updated.status,
+        rejectionReason: updated.rejectionReason,
+        reviewedByUserId: updated.reviewedByUserId,
+        reviewedAt: updated.reviewedAt,
+      },
+      ipAddress: actor.ipAddress,
+    });
+
     return updated;
   }
 
-  async closeRequest(id: string) {
+  async closeRequest(id: string, actor: AuditActor) {
     const request = await this.getRequestById(id);
 
     PaymentRequestStateMachine.assertValidTransition(
@@ -308,6 +397,18 @@ export class PaymentRequestsService {
       })
       .where(eq(paymentRequests.id, id))
       .returning();
+
+    await this.auditService.recordEvent({
+      userId: actor.userId,
+      userEmail: actor.userEmail,
+      userRole: actor.userRole,
+      action: 'CIERRE_SOLICITUD',
+      entity: 'payment_requests',
+      entityId: id,
+      oldValues: { status: request.status },
+      newValues: { status: updated.status },
+      ipAddress: actor.ipAddress,
+    });
 
     return updated;
   }

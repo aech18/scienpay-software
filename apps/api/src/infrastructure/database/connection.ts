@@ -2,22 +2,60 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import * as schema from './schema.js';
 
-export function createDatabaseConnection(connectionUrl?: string) {
-  const url =
-    connectionUrl ||
-    process.env.DATABASE_URL ||
-    `postgresql://${process.env.DATABASE_USER || 'scienpay_app'}:${process.env.DATABASE_PASSWORD || 'scienpay_dev_password_change_me'}@${process.env.DATABASE_HOST || 'localhost'}:${process.env.DATABASE_PORT || 5432}/${process.env.DATABASE_NAME || 'scienpay_db'}`;
+export interface DatabaseSettings {
+  max: number;
+  prepare: boolean;
+  connectTimeout: number;
+  idleTimeout: number;
+}
 
-  const maxConnections = process.env.DATABASE_MAX_CONNECTIONS
-    ? parseInt(process.env.DATABASE_MAX_CONNECTIONS, 10)
-    : 20;
+function defaultConnectionUrl(environment: NodeJS.ProcessEnv): string {
+  return `postgresql://${environment.DATABASE_USER || 'scienpay_app'}:${environment.DATABASE_PASSWORD || 'scienpay_dev_password_change_me'}@${environment.DATABASE_HOST || 'localhost'}:${environment.DATABASE_PORT || 5432}/${environment.DATABASE_NAME || 'scienpay_db'}`;
+}
 
-  const client = postgres(url, {
-    max: maxConnections,
-    connect_timeout: 15,
-    idle_timeout: 30,
+export function resolveDatabaseUrl(
+  environment: NodeJS.ProcessEnv = process.env,
+  direct = false,
+): string {
+  if (direct && environment.MIGRATION_DATABASE_URL) {
+    return environment.MIGRATION_DATABASE_URL;
+  }
+  return environment.DATABASE_URL || defaultConnectionUrl(environment);
+}
+
+export function resolveDatabaseSettings(
+  environment: NodeJS.ProcessEnv = process.env,
+): DatabaseSettings {
+  const parsedMaxConnections = Number.parseInt(environment.DATABASE_MAX_CONNECTIONS ?? '', 10);
+  const max =
+    Number.isFinite(parsedMaxConnections) && parsedMaxConnections > 0 ? parsedMaxConnections : 20;
+
+  return {
+    max,
+    prepare: environment.DATABASE_PREPARE !== 'false',
+    connectTimeout: 15,
+    idleTimeout: 30,
+  };
+}
+
+export function createDatabaseConnection(
+  connectionUrl: string = resolveDatabaseUrl(),
+  settings: DatabaseSettings = resolveDatabaseSettings(),
+) {
+  const client = postgres(connectionUrl, {
+    max: settings.max,
+    prepare: settings.prepare,
+    connect_timeout: settings.connectTimeout,
+    idle_timeout: settings.idleTimeout,
   });
   const db = drizzle(client, { schema });
 
   return { client, db };
+}
+
+export function createMigrationDatabaseConnection() {
+  return createDatabaseConnection(resolveDatabaseUrl(process.env, true), {
+    ...resolveDatabaseSettings(),
+    max: 1,
+  });
 }

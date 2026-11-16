@@ -29,7 +29,13 @@ jobs:
       - name: Compilar contratos compartidos (@scienpay/shared)
         run: npm run build --workspace=@scienpay/shared
 
-      - name: Verificación de tipos TypeScript
+      - name: Verificacion de formato (Prettier)
+        run: npm run format:check
+
+      - name: Analisis estatico (ESLint)
+        run: npm run lint
+
+      - name: Verificaci��n de tipos TypeScript
         run: npm run typecheck
 
       - name: Ejecución de pruebas unitarias
@@ -41,6 +47,98 @@ jobs:
       - name: Auditoría de dependencias (npm audit)
         run: npm audit --audit-level=high
         continue-on-error: true
+
+  integration:
+    name: Pruebas de Integracion (PostgreSQL)
+    runs-on: ubuntu-latest
+    needs: validate
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: scienpay_app
+          POSTGRES_PASSWORD: scienpay_ci_password
+          POSTGRES_DB: scienpay_test
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U scienpay_app -d scienpay_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgresql://scienpay_app:scienpay_ci_password@localhost:55432/scienpay_test
+      INTEGRATION_PORT: '4100'
+      CI: 'true'
+
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 20 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Instalacion limpia con lockfile (npm ci)
+        run: npm ci
+
+      - name: Ejecutar suite de integracion
+        run: npm run test:integration
+
+  e2e:
+    name: Pruebas E2E (Playwright)
+    runs-on: ubuntu-latest
+    needs: validate
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: scienpay_app
+          POSTGRES_PASSWORD: scienpay_ci_password
+          POSTGRES_DB: scienpay_test
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U scienpay_app -d scienpay_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgresql://scienpay_app:scienpay_ci_password@localhost:55432/scienpay_test
+      CI: 'true'
+
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 20 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Instalacion limpia con lockfile (npm ci)
+        run: npm ci
+
+      - name: Instalar navegador Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Ejecutar pruebas E2E
+        run: npm run e2e
+
+      - name: Publicar reporte Playwright
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report
+          retention-days: 7
 
   security-scan:
     name: Escaneo de Secretos y SAST

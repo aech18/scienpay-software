@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createDatabaseConnection } from './connection.js';
+import { createMigrationDatabaseConnection } from './connection.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,8 +24,10 @@ export async function runMigrations(maxRetries = 6, delayMs = 3000) {
 
   while (attempt < maxRetries) {
     attempt++;
-    const { client } = createDatabaseConnection();
-    console.log(`[Scienpay Migration] (Intento ${attempt}/${maxRetries}) Conectando y aplicando migraciones...`);
+    const { client } = createMigrationDatabaseConnection();
+    console.log(
+      `[Scienpay Migration] (Intento ${attempt}/${maxRetries}) Conectando y aplicando migraciones...`,
+    );
 
     try {
       const migrationsDirectory = resolveMigrationsDirectory();

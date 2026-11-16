@@ -1,13 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Patch,
-  Post,
-  Req,
-  Res,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, Req, Res, UseGuards } from '@nestjs/common';
 import {
   UserRole,
   createPaymentRequestSchema,
@@ -21,6 +12,10 @@ import { RolesGuard } from '../../infrastructure/auth/roles.guard.js';
 import { Roles } from '../../infrastructure/auth/roles.decorator.js';
 import { ZodValidationPipe } from '../../infrastructure/validation/zod-validation.pipe.js';
 import { UuidParam, UuidQuery } from '../../infrastructure/validation/uuid-param.decorator.js';
+import {
+  buildAuditActor,
+  type AuthenticatedRequest,
+} from '../../infrastructure/auth/audit-actor.js';
 
 @Controller('payment-requests')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -55,21 +50,26 @@ export class PaymentRequestsController {
   @Roles(UserRole.GENERADOR)
   async createRequest(
     @Body(new ZodValidationPipe(createPaymentRequestSchema)) body: CreatePaymentRequestInput,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
-    return this.paymentRequestsService.createRequest(body, req.user.id);
+    return this.paymentRequestsService.createRequest(body, buildAuditActor(req));
   }
 
   @Patch(':id/send')
   @Roles(UserRole.GENERADOR)
-  async sendRequest(@UuidParam() id: string, @Req() req: any) {
-    return this.paymentRequestsService.sendRequest(id, req.user.id);
+  async sendRequest(@UuidParam() id: string, @Req() req: AuthenticatedRequest) {
+    return this.paymentRequestsService.sendRequest(id, buildAuditActor(req));
   }
 
   @Patch(':id/approve')
   @Roles(UserRole.RECEPTOR)
-  async approveRequest(@UuidParam() id: string, @Req() req: any) {
-    return this.paymentRequestsService.approveRequest(id, req.user.id, req.user.role);
+  async approveRequest(@UuidParam() id: string, @Req() req: AuthenticatedRequest) {
+    return this.paymentRequestsService.approveRequest(
+      id,
+      req.user!.id!,
+      req.user!.role as UserRole,
+      buildAuditActor(req),
+    );
   }
 
   @Patch(':id/reject')
@@ -77,14 +77,20 @@ export class PaymentRequestsController {
   async rejectRequest(
     @UuidParam() id: string,
     @Body(new ZodValidationPipe(rejectPaymentRequestSchema)) body: RejectPaymentRequestInput,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
-    return this.paymentRequestsService.rejectRequest(id, req.user.id, req.user.role, body);
+    return this.paymentRequestsService.rejectRequest(
+      id,
+      req.user!.id!,
+      req.user!.role as UserRole,
+      body,
+      buildAuditActor(req),
+    );
   }
 
   @Patch(':id/close')
   @Roles(UserRole.RECEPTOR)
-  async closeRequest(@UuidParam() id: string) {
-    return this.paymentRequestsService.closeRequest(id);
+  async closeRequest(@UuidParam() id: string, @Req() req: AuthenticatedRequest) {
+    return this.paymentRequestsService.closeRequest(id, buildAuditActor(req));
   }
 }

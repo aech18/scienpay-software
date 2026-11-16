@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  ConflictException,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../../infrastructure/database/database.service.js';
 import {
   pettyCash,
@@ -25,6 +21,7 @@ import {
 import { PettyCashLedgerEngine } from '../../domain/petty-cash/petty-cash-ledger.engine.js';
 import { eq, and, or, desc, inArray, sql } from 'drizzle-orm';
 import { Decimal } from 'decimal.js';
+import { AuditService, type AuditActor } from '../audit/audit.service.js';
 
 const PENDING_VOUCHER_STATUSES = [
   PettyCashVoucherStatus.SOLICITADO,
@@ -34,7 +31,10 @@ const PENDING_VOUCHER_STATUSES = [
 
 @Injectable()
 export class PettyCashService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async listPettyCashes() {
     return this.databaseService.db.select().from(pettyCash).orderBy(pettyCash.name);
@@ -76,7 +76,7 @@ export class PettyCashService {
       .orderBy(desc(pettyCashVouchers.createdAt));
   }
 
-  async createPettyCash(input: CreatePettyCashInput) {
+  async createPettyCash(input: CreatePettyCashInput, actor: AuditActor) {
     const uniqueProjectIds = [...new Set(input.projectIds)];
 
     return this.databaseService.db.transaction(async (tx) => {
@@ -110,11 +110,36 @@ export class PettyCashService {
         });
       }
 
+      await this.auditService.recordEvent(
+        {
+          userId: actor.userId,
+          userEmail: actor.userEmail,
+          userRole: actor.userRole,
+          action: 'CREACION_CAJA_CHICA',
+          entity: 'petty_cash',
+          entityId: created.id,
+          oldValues: null,
+          newValues: {
+            name: created.name,
+            custodianName: created.custodianName,
+            projectIds: uniqueProjectIds,
+            status: created.status,
+          },
+          ipAddress: actor.ipAddress,
+        },
+        tx,
+      );
+
       return created;
     });
   }
 
-  async openPeriod(pettyCashId: string, input: OpenPettyCashPeriodInput, userId: string) {
+  async openPeriod(
+    pettyCashId: string,
+    input: OpenPettyCashPeriodInput,
+    userId: string,
+    actor: AuditActor,
+  ) {
     return this.databaseService.db.transaction(async (tx) => {
       const [cash] = await tx
         .select()
@@ -128,7 +153,9 @@ export class PettyCashService {
       }
 
       if (cash.status !== PettyCashStatus.ACTIVA) {
-        throw new ConflictException('CAJA_INACTIVA: No se pueden abrir períodos en una caja chica inactiva');
+        throw new ConflictException(
+          'CAJA_INACTIVA: No se pueden abrir períodos en una caja chica inactiva',
+        );
       }
 
       const existing = await tx
@@ -144,7 +171,9 @@ export class PettyCashService {
         .limit(1);
 
       if (existing.length > 0) {
-        throw new ConflictException('PERIODO_EXISTENTE: Ya existe un período registrado para este mes y año');
+        throw new ConflictException(
+          'PERIODO_EXISTENTE: Ya existe un período registrado para este mes y año',
+        );
       }
 
       // El arrastre solo puede provenir del período inmediatamente anterior y cerrado.
@@ -203,11 +232,37 @@ export class PettyCashService {
         notes: `Apertura mensual del período ${input.periodYear}-${input.periodMonth}`,
       });
 
+      await this.auditService.recordEvent(
+        {
+          userId: actor.userId,
+          userEmail: actor.userEmail,
+          userRole: actor.userRole,
+          action: 'APERTURA_PERIODO_CAJA_CHICA',
+          entity: 'petty_cash_periods',
+          entityId: period.id,
+          oldValues: null,
+          newValues: {
+            pettyCashId,
+            periodYear: period.periodYear,
+            periodMonth: period.periodMonth,
+            openingBalance: period.openingBalance,
+            status: period.status,
+          },
+          ipAddress: actor.ipAddress,
+        },
+        tx,
+      );
+
       return period;
     });
   }
 
-  async requestVoucher(periodId: string, input: RequestPettyCashVoucherInput, requestedBy: string) {
+  async requestVoucher(
+    periodId: string,
+    input: RequestPettyCashVoucherInput,
+    requestedBy: string,
+    actor: AuditActor,
+  ) {
     return this.databaseService.db.transaction(async (tx) => {
       const [period] = await tx
         .select()
@@ -250,7 +305,9 @@ export class PettyCashService {
       const nextNumber = Number((sequenceResult as any)[0]?.next_number ?? 0);
 
       if (!Number.isFinite(nextNumber) || nextNumber <= 0) {
-        throw new ConflictException('SECUENCIA_VALE_INVALIDA: No se pudo reservar el número de vale');
+        throw new ConflictException(
+          'SECUENCIA_VALE_INVALIDA: No se pudo reservar el número de vale',
+        );
       }
 
       const voucherNumber = `VAL-${year}-${nextNumber.toString().padStart(4, '0')}`;
@@ -268,11 +325,33 @@ export class PettyCashService {
         })
         .returning();
 
+      await this.auditService.recordEvent(
+        {
+          userId: actor.userId,
+          userEmail: actor.userEmail,
+          userRole: actor.userRole,
+          action: 'SOLICITUD_VALE_CAJA_CHICA',
+          entity: 'petty_cash_vouchers',
+          entityId: voucher.id,
+          oldValues: null,
+          newValues: {
+            voucherNumber: voucher.voucherNumber,
+            pettyCashPeriodId: voucher.pettyCashPeriodId,
+            projectId: voucher.projectId,
+            requestedAmount: voucher.requestedAmount,
+            purpose: voucher.purpose,
+            status: voucher.status,
+          },
+          ipAddress: actor.ipAddress,
+        },
+        tx,
+      );
+
       return voucher;
     });
   }
 
-  async approveVoucher(voucherId: string, userId: string) {
+  async approveVoucher(voucherId: string, userId: string, actor: AuditActor) {
     return this.databaseService.db.transaction(async (tx) => {
       const [voucher] = await tx
         .select()
@@ -282,7 +361,9 @@ export class PettyCashService {
         .for('update');
 
       if (!voucher || voucher.status !== PettyCashVoucherStatus.SOLICITADO) {
-        throw new ConflictException('ESTADO_INVALIDO: Solo se pueden aprobar vales en estado SOLICITADO');
+        throw new ConflictException(
+          'ESTADO_INVALIDO: Solo se pueden aprobar vales en estado SOLICITADO',
+        );
       }
 
       const [approved] = await tx
@@ -294,11 +375,29 @@ export class PettyCashService {
         .where(eq(pettyCashVouchers.id, voucherId))
         .returning();
 
+      await this.auditService.recordEvent(
+        {
+          userId: actor.userId,
+          userEmail: actor.userEmail,
+          userRole: actor.userRole,
+          action: 'APROBACION_VALE_CAJA_CHICA',
+          entity: 'petty_cash_vouchers',
+          entityId: voucherId,
+          oldValues: { status: voucher.status },
+          newValues: {
+            status: approved.status,
+            approvedByUserId: approved.approvedByUserId,
+          },
+          ipAddress: actor.ipAddress,
+        },
+        tx,
+      );
+
       return approved;
     });
   }
 
-  async disburseVoucher(voucherId: string, userId: string) {
+  async disburseVoucher(voucherId: string, userId: string, actor: AuditActor) {
     return this.databaseService.db.transaction(async (tx) => {
       const [voucherSnapshot] = await tx
         .select()
@@ -332,7 +431,9 @@ export class PettyCashService {
         .for('update');
 
       if (!voucher || voucher.status !== PettyCashVoucherStatus.APROBADO) {
-        throw new ConflictException('ESTADO_INVALIDO: Solo se pueden desembolsar vales en estado APROBADO');
+        throw new ConflictException(
+          'ESTADO_INVALIDO: Solo se pueden desembolsar vales en estado APROBADO',
+        );
       }
 
       const canDisburse = PettyCashLedgerEngine.canDisburse(
@@ -383,11 +484,39 @@ export class PettyCashService {
         notes: `Desembolso de vale ${voucher.voucherNumber}`,
       });
 
+      await this.auditService.recordEvent(
+        {
+          userId: actor.userId,
+          userEmail: actor.userEmail,
+          userRole: actor.userRole,
+          action: 'DESEMBOLSO_VALE_CAJA_CHICA',
+          entity: 'petty_cash_vouchers',
+          entityId: voucherId,
+          oldValues: {
+            status: voucher.status,
+            periodClosingBalance: period.closingBalance,
+          },
+          newValues: {
+            status: disbursed.status,
+            disbursedByUserId: disbursed.disbursedByUserId,
+            periodClosingBalance: newBal,
+            disbursedTotal: newDisbursedTotal,
+          },
+          ipAddress: actor.ipAddress,
+        },
+        tx,
+      );
+
       return disbursed;
     });
   }
 
-  async renderVoucher(voucherId: string, input: RenderPettyCashVoucherInput, userId: string) {
+  async renderVoucher(
+    voucherId: string,
+    input: RenderPettyCashVoucherInput,
+    userId: string,
+    actor: AuditActor,
+  ) {
     return this.databaseService.db.transaction(async (tx) => {
       const [voucherSnapshot] = await tx
         .select()
@@ -421,7 +550,9 @@ export class PettyCashService {
         .for('update');
 
       if (!voucher || voucher.status !== PettyCashVoucherStatus.DESEMBOLSADO) {
-        throw new ConflictException('ESTADO_INVALIDO: Solo se pueden rendir vales que hayan sido desembolsados');
+        throw new ConflictException(
+          'ESTADO_INVALIDO: Solo se pueden rendir vales que hayan sido desembolsados',
+        );
       }
 
       const isBalanced = PettyCashLedgerEngine.isReconciliationBalanced({
@@ -479,11 +610,36 @@ export class PettyCashService {
         });
       }
 
+      await this.auditService.recordEvent(
+        {
+          userId: actor.userId,
+          userEmail: actor.userEmail,
+          userRole: actor.userRole,
+          action: 'RENDICION_VALE_CAJA_CHICA',
+          entity: 'petty_cash_vouchers',
+          entityId: voucherId,
+          oldValues: {
+            status: voucher.status,
+            periodClosingBalance: period.closingBalance,
+          },
+          newValues: {
+            status: rendered.status,
+            renderedAmount: rendered.renderedAmount,
+            changeAmount: rendered.changeAmount,
+            invoiceReference: rendered.invoiceReference,
+            periodClosingBalance: currentBalance.toFixed(2),
+            renderedTotal: newRenderedTotal,
+          },
+          ipAddress: actor.ipAddress,
+        },
+        tx,
+      );
+
       return rendered;
     });
   }
 
-  async closePeriod(periodId: string, userId: string) {
+  async closePeriod(periodId: string, userId: string, actor: AuditActor) {
     return this.databaseService.db.transaction(async (tx) => {
       const [period] = await tx
         .select()
@@ -524,6 +680,25 @@ export class PettyCashService {
         })
         .where(eq(pettyCashPeriods.id, periodId))
         .returning();
+
+      await this.auditService.recordEvent(
+        {
+          userId: actor.userId,
+          userEmail: actor.userEmail,
+          userRole: actor.userRole,
+          action: 'CIERRE_PERIODO_CAJA_CHICA',
+          entity: 'petty_cash_periods',
+          entityId: periodId,
+          oldValues: { status: period.status },
+          newValues: {
+            status: closed.status,
+            closedByUserId: closed.closedByUserId,
+            closingBalance: closed.closingBalance,
+          },
+          ipAddress: actor.ipAddress,
+        },
+        tx,
+      );
 
       return closed;
     });

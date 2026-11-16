@@ -2,6 +2,7 @@ import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import * as schema from './schema.js';
+import { resolveDatabaseSettings, resolveDatabaseUrl } from './connection.js';
 
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
@@ -9,18 +10,13 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   public db!: ReturnType<typeof drizzle<typeof schema>>;
 
   onModuleInit() {
-    const url =
-      process.env.DATABASE_URL ||
-      `postgresql://${process.env.DATABASE_USER || 'scienpay_app'}:${process.env.DATABASE_PASSWORD || 'scienpay_dev_password_change_me'}@${process.env.DATABASE_HOST || 'localhost'}:${process.env.DATABASE_PORT || 5432}/${process.env.DATABASE_NAME || 'scienpay_db'}`;
+    const settings = resolveDatabaseSettings();
 
-    const maxConnections = process.env.DATABASE_MAX_CONNECTIONS
-      ? parseInt(process.env.DATABASE_MAX_CONNECTIONS, 10)
-      : 20;
-
-    this.client = postgres(url, {
-      max: maxConnections,
-      connect_timeout: 15,
-      idle_timeout: 30,
+    this.client = postgres(resolveDatabaseUrl(), {
+      max: settings.max,
+      prepare: settings.prepare,
+      connect_timeout: settings.connectTimeout,
+      idle_timeout: settings.idleTimeout,
     });
     this.db = drizzle(this.client, { schema });
   }

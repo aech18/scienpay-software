@@ -43,6 +43,8 @@ export interface UserAccount extends AuthUser {
   isLocked: boolean;
   lockoutExpiresAt: string | null;
   permanentLock: boolean;
+  isActive: boolean;
+  deactivatedAt: string | null;
   createdAt: string;
 }
 
@@ -163,6 +165,7 @@ export interface PaymentRequest {
   causationBatchId: string;
   periodDescription: string;
   totalAmountUSD: string;
+  notes: string;
   status: PaymentRequestStatus;
   createdByUserId: string;
   reviewedByUserId: string | null;

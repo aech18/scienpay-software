@@ -19,7 +19,7 @@ import {
 } from '@scienpay/shared';
 import { CausationCalculator } from '../../domain/causation/causation-calculator.js';
 import { CausationAnnulmentPolicy } from '../../domain/causation/causation-annulment.policy.js';
-import { AuditService } from '../audit/audit.service.js';
+import { AuditService, type AuditActor } from '../audit/audit.service.js';
 import { eq, and, gt, ne } from 'drizzle-orm';
 import { Decimal } from 'decimal.js';
 
@@ -88,7 +88,7 @@ export class CausationService {
     };
   }
 
-  async generateBatch(input: GenerateCausationBatchInput, userId: string) {
+  async generateBatch(input: GenerateCausationBatchInput, actor: AuditActor) {
     // 1. Idempotencia: Verificar si ya existe lote activo para este corte exacto
     const existing = await this.databaseService.db
       .select({ id: causationBatches.id, status: causationBatches.status })
@@ -114,7 +114,9 @@ export class CausationService {
     const preview = await this.previewCausation(input);
 
     if (preview.items.length === 0) {
-      throw new ConflictException('SIN_ASIGNACIONES: No existen asignaciones activas para generar la causación');
+      throw new ConflictException(
+        'SIN_ASIGNACIONES: No existen asignaciones activas para generar la causación',
+      );
     }
 
     // 3. Insertar lote
@@ -127,7 +129,7 @@ export class CausationService {
         periodEndDate: input.periodEndDate,
         totalCausationAmount: preview.totalCausationAmount,
         status: CausationBatchStatus.CALCULADO,
-        calculatedByUserId: userId,
+        calculatedByUserId: actor.userId!,
       })
       .returning();
 
@@ -149,6 +151,25 @@ export class CausationService {
 
     await this.databaseService.db.insert(causationItems).values(itemsToInsert);
 
+    await this.auditService.recordEvent({
+      userId: actor.userId,
+      userEmail: actor.userEmail,
+      userRole: actor.userRole,
+      action: 'GENERACION_CAUSACION',
+      entity: 'causation_batches',
+      entityId: batch.id,
+      oldValues: null,
+      newValues: {
+        projectId: batch.projectId,
+        paymentGroupId: batch.paymentGroupId,
+        periodStartDate: batch.periodStartDate,
+        periodEndDate: batch.periodEndDate,
+        totalCausationAmount: batch.totalCausationAmount,
+        itemsCount: itemsToInsert.length,
+      },
+      ipAddress: actor.ipAddress,
+    });
+
     return {
       message: 'LOTE_CAUSACION_GENERADO_EXITOSAMENTE',
       batch,
@@ -164,7 +185,10 @@ export class CausationService {
         .where(eq(causationBatches.projectId, projectId))
         .orderBy(causationBatches.periodStartDate);
     }
-    return this.databaseService.db.select().from(causationBatches).orderBy(causationBatches.periodStartDate);
+    return this.databaseService.db
+      .select()
+      .from(causationBatches)
+      .orderBy(causationBatches.periodStartDate);
   }
 
   async getBatchById(id: string) {
@@ -223,12 +247,7 @@ export class CausationService {
       const paidItems = await tx
         .select({ id: causationItems.id })
         .from(causationItems)
-        .where(
-          and(
-            eq(causationItems.batchId, id),
-            gt(causationItems.paidAmount, '0.00'),
-          ),
-        )
+        .where(and(eq(causationItems.batchId, id), gt(causationItems.paidAmount, '0.00')))
         .limit(1);
 
       const blocker = CausationAnnulmentPolicy.evaluate({

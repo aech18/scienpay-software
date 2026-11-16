@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CreateUserInput } from '@scienpay/shared';
+import type { CreateUserInput, UpdateUserInput } from '@scienpay/shared';
 import { apiClient } from '../lib/apiClient.js';
 import type { AuthUser, UserAccount } from '../types/api.types.js';
 
@@ -40,6 +40,31 @@ export function useResetUserAttempts() {
   return useMutation({
     mutationFn: (id: string) =>
       apiClient.patch<UserMutationResponse>(`/users/${id}/reset-attempts`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: userKeys.all }),
+  });
+}
+
+export function useUpdateUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: UpdateUserInput }) =>
+      apiClient.patch<AuthUser>(`/users/${id}`, input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: userKeys.all }),
+  });
+}
+
+export function useDeactivateUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiClient.delete<UserMutationResponse>(`/users/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: userKeys.all }),
+  });
+}
+
+export function useReactivateUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiClient.patch<UserMutationResponse>(`/users/${id}/reactivate`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: userKeys.all }),
   });
 }

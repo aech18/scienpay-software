@@ -1,14 +1,27 @@
 import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../../infrastructure/database/database.service.js';
-import { assignments, persons, projects, paymentGroups } from '../../infrastructure/database/schema.js';
-import { CreateAssignmentInput, TerminateAssignmentInput, AssignmentStatus } from '@scienpay/shared';
+import {
+  assignments,
+  persons,
+  projects,
+  paymentGroups,
+} from '../../infrastructure/database/schema.js';
+import {
+  CreateAssignmentInput,
+  TerminateAssignmentInput,
+  AssignmentStatus,
+} from '@scienpay/shared';
 import { AssignmentOverlapPolicy } from '../../domain/assignments/assignment-overlap.policy.js';
 import { eq, and } from 'drizzle-orm';
 import { Decimal } from 'decimal.js';
+import { AuditService, type AuditActor } from '../audit/audit.service.js';
 
 @Injectable()
 export class AssignmentsService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async listAssignments(projectId?: string) {
     if (projectId) {
@@ -34,7 +47,7 @@ export class AssignmentsService {
     return assignment;
   }
 
-  async createAssignment(input: CreateAssignmentInput) {
+  async createAssignment(input: CreateAssignmentInput, actor: AuditActor) {
     // 1. Validar existencia de entidades relacionadas
     const [person] = await this.databaseService.db
       .select({ id: persons.id })
@@ -107,14 +120,37 @@ export class AssignmentsService {
       })
       .returning();
 
+    await this.auditService.recordEvent({
+      userId: actor.userId,
+      userEmail: actor.userEmail,
+      userRole: actor.userRole,
+      action: 'CREACION_ASIGNACION',
+      entity: 'assignments',
+      entityId: created.id,
+      oldValues: null,
+      newValues: {
+        personId: created.personId,
+        projectId: created.projectId,
+        paymentGroupId: created.paymentGroupId,
+        amountPerPeriod: created.amountPerPeriod,
+        currency: created.currency,
+        startDate: created.startDate,
+        endDate: created.endDate,
+        status: created.status,
+      },
+      ipAddress: actor.ipAddress,
+    });
+
     return created;
   }
 
-  async terminateAssignment(id: string, input: TerminateAssignmentInput) {
+  async terminateAssignment(id: string, input: TerminateAssignmentInput, actor: AuditActor) {
     const existing = await this.getAssignmentById(id);
 
     if (new Date(input.endDate) < new Date(existing.startDate)) {
-      throw new ConflictException('FECHA_INVALIDA: La fecha de término no puede ser anterior a la de inicio');
+      throw new ConflictException(
+        'FECHA_INVALIDA: La fecha de término no puede ser anterior a la de inicio',
+      );
     }
 
     const [updated] = await this.databaseService.db
@@ -127,6 +163,29 @@ export class AssignmentsService {
       })
       .where(eq(assignments.id, id))
       .returning();
+
+    await this.auditService.recordEvent({
+      userId: actor.userId,
+      userEmail: actor.userEmail,
+      userRole: actor.userRole,
+      action: 'TERMINACION_ASIGNACION',
+      entity: 'assignments',
+      entityId: id,
+      oldValues: {
+        startDate: existing.startDate,
+        endDate: existing.endDate,
+        status: existing.status,
+        notes: existing.notes,
+      },
+      newValues: {
+        startDate: updated.startDate,
+        endDate: updated.endDate,
+        status: updated.status,
+        notes: updated.notes,
+        reason: input.reason,
+      },
+      ipAddress: actor.ipAddress,
+    });
 
     return updated;
   }

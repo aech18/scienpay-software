@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import {
   UserRole,
   createProjectSchema,
@@ -12,6 +12,10 @@ import { RolesGuard } from '../../infrastructure/auth/roles.guard.js';
 import { Roles } from '../../infrastructure/auth/roles.decorator.js';
 import { ZodValidationPipe } from '../../infrastructure/validation/zod-validation.pipe.js';
 import { UuidParam } from '../../infrastructure/validation/uuid-param.decorator.js';
+import {
+  buildAuditActor,
+  type AuthenticatedRequest,
+} from '../../infrastructure/auth/audit-actor.js';
 
 @Controller('projects')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -34,8 +38,9 @@ export class ProjectsController {
   @Roles(UserRole.GENERADOR)
   async createProject(
     @Body(new ZodValidationPipe(createProjectSchema)) body: CreateProjectInput,
+    @Req() req: AuthenticatedRequest,
   ) {
-    return this.projectsService.createProject(body);
+    return this.projectsService.createProject(body, buildAuditActor(req));
   }
 
   @Patch(':id')
@@ -43,7 +48,8 @@ export class ProjectsController {
   async updateProject(
     @UuidParam() id: string,
     @Body(new ZodValidationPipe(updateProjectSchema)) body: UpdateProjectInput,
+    @Req() req: AuthenticatedRequest,
   ) {
-    return this.projectsService.updateProject(id, body);
+    return this.projectsService.updateProject(id, body, buildAuditActor(req));
   }
 }

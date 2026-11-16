@@ -99,7 +99,10 @@ export const NotionLogin: React.FC = () => {
           <form onSubmit={onSubmit} className="space-y-4" noValidate>
             {/* Campo Usuario o Correo */}
             <div>
-              <label className="block text-[11px] font-semibold text-[#787774] dark:text-[#9B9A97] uppercase tracking-wider mb-1.5">
+              <label
+                htmlFor="login-identifier"
+                className="block text-[11px] font-semibold text-[#787774] dark:text-[#9B9A97] uppercase tracking-wider mb-1.5"
+              >
                 Usuario o correo
               </label>
               <div className="relative">
@@ -107,6 +110,7 @@ export const NotionLogin: React.FC = () => {
                   <User className="w-4 h-4" />
                 </div>
                 <input
+                  id="login-identifier"
                   type="text"
                   autoComplete="username"
                   placeholder="usuario@scienpay.uc.edu.ve"
@@ -128,7 +132,10 @@ export const NotionLogin: React.FC = () => {
             {/* Campo Contraseña */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-[11px] font-semibold text-[#787774] dark:text-[#9B9A97] uppercase tracking-wider">
+                <label
+                  htmlFor="login-password"
+                  className="block text-[11px] font-semibold text-[#787774] dark:text-[#9B9A97] uppercase tracking-wider"
+                >
                   Contraseña
                 </label>
                 <span className="text-[10px] text-[#9B9A97]">Mínimo 12 car.</span>
@@ -138,6 +145,7 @@ export const NotionLogin: React.FC = () => {
                   <Lock className="w-4 h-4" />
                 </div>
                 <input
+                  id="login-password"
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   placeholder="••••••••••••"

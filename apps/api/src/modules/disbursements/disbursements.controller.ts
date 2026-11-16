@@ -1,12 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Post,
-  Req,
-  Res,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
 import {
   UserRole,
   registerDisbursementSchema,
@@ -18,6 +10,10 @@ import { RolesGuard } from '../../infrastructure/auth/roles.guard.js';
 import { Roles } from '../../infrastructure/auth/roles.decorator.js';
 import { ZodValidationPipe } from '../../infrastructure/validation/zod-validation.pipe.js';
 import { UuidParam, UuidQuery } from '../../infrastructure/validation/uuid-param.decorator.js';
+import {
+  buildAuditActor,
+  type AuthenticatedRequest,
+} from '../../infrastructure/auth/audit-actor.js';
 
 @Controller('disbursements')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -44,10 +40,7 @@ export class DisbursementsController {
 
   @Get('receipts/:id/pdf')
   @Roles(UserRole.ADMIN, UserRole.GENERADOR, UserRole.RECEPTOR)
-  async downloadReceiptPdf(
-    @UuidParam() id: string,
-    @Res() res: any,
-  ) {
+  async downloadReceiptPdf(@UuidParam() id: string, @Res() res: any) {
     const { buffer, filename } = await this.disbursementsService.generateReceiptPdfBuffer(id);
     res.set({
       'Content-Type': 'application/pdf',
@@ -61,8 +54,8 @@ export class DisbursementsController {
   @Roles(UserRole.RECEPTOR)
   async registerDisbursement(
     @Body(new ZodValidationPipe(registerDisbursementSchema)) body: RegisterDisbursementInput,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
-    return this.disbursementsService.registerDisbursement(body, req.user.id);
+    return this.disbursementsService.registerDisbursement(body, buildAuditActor(req));
   }
 }

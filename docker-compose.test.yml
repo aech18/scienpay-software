@@ -1,0 +1,21 @@
+services:
+  postgres-test:
+    image: postgres:16-alpine
+    container_name: scienpay-postgres-test
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: scienpay_app
+      POSTGRES_PASSWORD: ${TEST_DB_PASSWORD:-scienpay_dev_password_change_me}
+      POSTGRES_DB: scienpay_test
+    ports:
+      - '55432:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U scienpay_app -d scienpay_test']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - scienpay_test_data:/var/lib/postgresql/data
+
+volumes:
+  scienpay_test_data:

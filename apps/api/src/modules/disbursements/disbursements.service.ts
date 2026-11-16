@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  ConflictException,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../../infrastructure/database/database.service.js';
 import {
   disbursements,
@@ -26,10 +22,14 @@ import { PaymentRequestStateMachine } from '../../domain/payment-requests/paymen
 import { PdfReceiptGenerator } from '../../infrastructure/pdf/pdf-receipt.generator.js';
 import { eq, and, gt, ne, sql } from 'drizzle-orm';
 import { Decimal } from 'decimal.js';
+import { AuditService, type AuditActor } from '../audit/audit.service.js';
 
 @Injectable()
 export class DisbursementsService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async listDisbursements(requestId?: string) {
     if (requestId) {
@@ -136,9 +136,11 @@ export class DisbursementsService {
     };
   }
 
-  async registerDisbursement(input: RegisterDisbursementInput, userId: string) {
+  async registerDisbursement(input: RegisterDisbursementInput, actor: AuditActor) {
     if (!input.paymentRequestId) {
-      throw new ConflictException('ID_SOLICITUD_REQUERIDO: Se debe especificar el ID de la solicitud de pago');
+      throw new ConflictException(
+        'ID_SOLICITUD_REQUERIDO: Se debe especificar el ID de la solicitud de pago',
+      );
     }
 
     const uniquePersons = new Set(input.allocations.map((allocation) => allocation.personId));
@@ -186,7 +188,7 @@ export class DisbursementsService {
         .insert(disbursements)
         .values({
           paymentRequestId: request.id,
-          disbursedByUserId: userId,
+          disbursedByUserId: actor.userId!,
           paymentMethod: input.paymentMethod,
           referenceNumber: input.referenceNumber || '',
           totalAmount: totalDisbursed.toFixed(2),
@@ -222,10 +224,7 @@ export class DisbursementsService {
         let fifoResult;
 
         try {
-          fifoResult = FIFOAllocationEngine.allocatePayment(
-            pendingItems,
-            personAlloc.amount,
-          );
+          fifoResult = FIFOAllocationEngine.allocatePayment(pendingItems, personAlloc.amount);
         } catch (error) {
           if (error instanceof Error) {
             throw new ConflictException(error.message);
@@ -260,7 +259,7 @@ export class DisbursementsService {
             projectId: request.projectId,
             totalAmountUSD: fifoResult.totalAllocatedUSD,
             remainingDebtAfterUSD: fifoResult.remainingDebtAfterUSD,
-            issuedByUserId: userId,
+            issuedByUserId: actor.userId!,
             notes: input.notes || '',
           })
           .returning();
@@ -301,6 +300,29 @@ export class DisbursementsService {
           updatedAt: new Date(),
         })
         .where(eq(paymentRequests.id, request.id));
+
+      await this.auditService.recordEvent(
+        {
+          userId: actor.userId,
+          userEmail: actor.userEmail,
+          userRole: actor.userRole,
+          action: 'DESEMBOLSO',
+          entity: 'disbursements',
+          entityId: disbursement.id,
+          oldValues: { requestStatus: request.status },
+          newValues: {
+            paymentRequestId: request.id,
+            totalAmount: disbursement.totalAmount,
+            paymentMethod: disbursement.paymentMethod,
+            referenceNumber: disbursement.referenceNumber,
+            receiptIds: issuedReceipts.map((receipt) => receipt.id),
+            requestStatus: PaymentRequestStatus.ENTREGADA,
+            allocations: input.allocations,
+          },
+          ipAddress: actor.ipAddress,
+        },
+        tx,
+      );
 
       return {
         message: 'DESEMBOLSO_REGISTRADO_EXITOSAMENTE',

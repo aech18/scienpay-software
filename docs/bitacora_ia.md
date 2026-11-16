@@ -216,3 +216,31 @@
   - Se normalizó la numeración de sesiones (16 y 17) y se añadió la sesión 18.
   - Se actualizaron `HANDOFF.md`, `avances.md` y `uso-de-ia.md`; no se modificó `main`.
 
+
+#### Sesión 19: Calidad, OpenAPI, deuda técnica e integración
+- **Fecha:** 15 de Noviembre de 2026
+- **Herramienta:** Asistente de Codificación / OpenCode
+- **Objetivo:** Ejecutar las tareas 4.1, 4.3, 4.4, 4.5 y 4.6 del plan de Fase 4.
+- **Resultado:**
+  - ESLint flat config, Prettier y scripts de lint/formato; CI con pasos bloqueantes y ADR-008.
+  - OpenAPI generado desde Zod en `/api/docs` y `/api/docs.json`, con test de contrato.
+  - Migración `0005` para numeración transaccional de solicitudes y persistencia de `notes`.
+  - Tests frontend reales con Vitest/RTL (10 pruebas) y eliminación del placeholder.
+  - Infraestructura de integración versionada: Docker Compose de pruebas, runner, helpers y suites por dominio; job de CI con PostgreSQL 16.
+  - Test de concurrencia FIFO con 20 desembolsos paralelos y 10 repeticiones.
+- **Verificación:** typecheck sin errores, 98/98 tests de API, 10/10 tests web, lint y formato correctos.
+- **Limitación inicial:** Docker no estaba disponible localmente; la suite se validó después en la Sesión 20.
+
+#### Sesión 20: Ejecución real de la integración y cierre de Fase 4
+- **Fecha:** 15 de Noviembre de 2026
+- **Herramienta:** Asistente de Codificación / OpenCode
+- **Objetivo:** Levantar PostgreSQL de pruebas, ejecutar la suite versionada, implementar Playwright/E2E y verificar las tareas 4.1, 4.2 y 4.3.
+- **Resultado:**
+  - Docker 28.4.0 disponible; `docker-compose.test.yml` levantó PostgreSQL 16 en `55432` con estado `healthy`.
+  - `npm run test:integration` ejecutó migraciones, seed, API compilada y seis suites: **13/13 tests PASS, 0 FAIL** en 20.4 s.
+  - La prueba de concurrencia FIFO (20 desembolsos × 10 repeticiones) pasó en 19.8 s sin sobrepago, saldos negativos ni descuadres SQL.
+  - Playwright configurado en `apps/web/playwright.config.ts` con API en `4300`, Vite en `5173`, PostgreSQL de pruebas y bypass de rate limit solo en entorno no productivo. Seis pruebas E2E: **6/6 PASS** en 25.1 s.
+  - Se agregó el job `e2e` al CI con PostgreSQL 16, Chromium y publicación del reporte ante fallos.
+  - Correcciones: resolución directa de `tsx` para Windows, labels accesibles en el login, expectativa 201 en preview de causación, contraseña inválida con longitud válida y lectura de respuestas binarias antes de consumir el cuerpo.
+- **Verificación:** 13/13 integración, 6/6 E2E, 98/98 API, 10/10 web, typecheck, lint y formato.
+- **Pendiente:** Fase 5 (pulimiento y entrega).

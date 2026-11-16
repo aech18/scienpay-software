@@ -1,36 +1,76 @@
 import React from 'react';
 import { useForm } from 'react-hook-form';
-import { UserRole, createUserSchema, type CreateUserInput } from '@scienpay/shared';
-import { useCreateUser } from '../../hooks/useUsers.js';
+import { UserRole, createUserSchema, updateUserSchema } from '@scienpay/shared';
+import { useCreateUser, useUpdateUser } from '../../hooks/useUsers.js';
 import { useToast } from '../../context/ToastContext.js';
 import { getApiErrorMessage } from '../../lib/apiClient.js';
 import { zodResolver } from '../../lib/zodResolver.js';
 import { Button, FormActions, FormField, SelectInput, TextInput } from '../ui/FormControls.js';
+import type { UserAccount } from '../../types/api.types.js';
 
 interface UserFormProps {
   onSuccess: () => void;
+  user?: UserAccount;
 }
 
-export const UserForm: React.FC<UserFormProps> = ({ onSuccess }) => {
+interface UserFormValues {
+  email: string;
+  fullName: string;
+  title?: string;
+  role: UserRole;
+  password?: string;
+}
+
+export const UserForm: React.FC<UserFormProps> = ({ onSuccess, user }) => {
   const { showToast } = useToast();
   const createUser = useCreateUser();
+  const updateUser = useUpdateUser();
+  const isEdit = Boolean(user);
 
-  const form = useForm<CreateUserInput>({
-    resolver: zodResolver<CreateUserInput>(createUserSchema),
-    defaultValues: {
-      email: '',
-      fullName: '',
-      role: UserRole.GENERADOR,
-      password: '',
-    },
+  const form = useForm<UserFormValues>({
+    resolver: zodResolver<UserFormValues>(isEdit ? updateUserSchema : createUserSchema),
+    defaultValues: isEdit
+      ? {
+          email: user!.email,
+          fullName: user!.fullName,
+          title: user!.title,
+          role: user!.role,
+        }
+      : {
+          email: '',
+          fullName: '',
+          title: '',
+          role: UserRole.GENERADOR,
+          password: '',
+        },
   });
 
   const errors = form.formState.errors;
+  const isPending = createUser.isPending || updateUser.isPending;
 
   const onSubmit = form.handleSubmit(async (values) => {
     try {
-      await createUser.mutateAsync(values);
-      showToast('Usuario creado correctamente', 'success');
+      if (isEdit) {
+        await updateUser.mutateAsync({
+          id: user!.id,
+          input: {
+            email: values.email,
+            fullName: values.fullName,
+            title: values.title,
+            role: values.role,
+          },
+        });
+        showToast('Usuario actualizado correctamente', 'success');
+      } else {
+        await createUser.mutateAsync({
+          email: values.email,
+          fullName: values.fullName,
+          title: values.title,
+          role: values.role,
+          password: values.password!,
+        });
+        showToast('Usuario creado correctamente', 'success');
+      }
       onSuccess();
     } catch (error) {
       showToast(getApiErrorMessage(error), 'error');
@@ -52,6 +92,14 @@ export const UserForm: React.FC<UserFormProps> = ({ onSuccess }) => {
         <TextInput hasError={Boolean(errors.fullName)} {...form.register('fullName')} />
       </FormField>
 
+      <FormField label="Cargo" error={errors.title?.message}>
+        <TextInput
+          placeholder="Coordinador General"
+          hasError={Boolean(errors.title)}
+          {...form.register('title')}
+        />
+      </FormField>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <FormField label="Rol" required error={errors.role?.message}>
           <SelectInput hasError={Boolean(errors.role)} {...form.register('role')}>
@@ -63,30 +111,34 @@ export const UserForm: React.FC<UserFormProps> = ({ onSuccess }) => {
           </SelectInput>
         </FormField>
 
-        <FormField
-          label="Contraseña inicial"
-          required
-          error={errors.password?.message}
-          hint="Mínimo 8 caracteres"
-        >
-          <TextInput
-            type="password"
-            hasError={Boolean(errors.password)}
-            {...form.register('password')}
-          />
-        </FormField>
+        {!isEdit && (
+          <FormField
+            label="Contraseña inicial"
+            required
+            error={errors.password?.message}
+            hint="Mínimo 12 caracteres"
+          >
+            <TextInput
+              type="password"
+              hasError={Boolean(errors.password)}
+              {...form.register('password')}
+            />
+          </FormField>
+        )}
       </div>
 
-      <p className="text-[10px] text-[#9B9A97] dark:text-[#888886]">
-        El nombre de usuario se deriva automáticamente de la parte local del correo.
-      </p>
+      {!isEdit && (
+        <p className="text-[10px] text-[#9B9A97] dark:text-[#888886]">
+          El nombre de usuario se deriva automáticamente de la parte local del correo.
+        </p>
+      )}
 
       <FormActions>
         <Button type="button" variant="secondary" onClick={onSuccess}>
           Cancelar
         </Button>
-        <Button type="submit" disabled={createUser.isPending}>
-          {createUser.isPending ? 'Creando…' : 'Crear Usuario'}
+        <Button type="submit" disabled={isPending}>
+          {isPending ? 'Guardando…' : isEdit ? 'Guardar Cambios' : 'Crear Usuario'}
         </Button>
       </FormActions>
     </form>

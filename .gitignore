@@ -36,6 +36,8 @@ lerna-debug.log*
 coverage/
 .nyc_output/
 test-results/
+playwright-report/
+blob-report/
 
 # Editor e IDE
 .idea/

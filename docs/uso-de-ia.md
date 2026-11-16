@@ -108,3 +108,18 @@ Este documento registra los prompts utilizados, las decisiones aceptadas y recha
 4. **Frontend real conectado a la API (Fase 3):**
    - *Generado:* `apiClient` con refresh/retry, `AuthContext` con deduplicación de refresh, 10 módulos de hooks TanStack Query, 12 formularios de dominio RHF+Zod (más el login), componentes UI reutilizables y las vistas `AdminView`, `GeneratorView` y `ReceptorView`.
    - *Revisión Humana:* Se verificó que no queden imports a `mockData.ts` ni a `app.types.ts`, que el access token no se persista en el navegador, que las mutaciones invaliden sus claves de caché y que `typecheck` y `build` del workspace web finalicen sin errores. La suite de API se mantuvo en 87/87.
+
+---
+
+## 4. Decisiones de Calidad y CI (Fase 4)
+
+| ID | Propuesta | Decisión | Justificación |
+|---|---|---|---|
+| **DEC-IA-30** | Mantener el script de integración temporal fuera del repositorio. | **Rechazada** | No es reproducible ni bloqueante. Se versionaron suites por dominio, un runner con migraciones/seed/arranque de API y un job de CI con PostgreSQL 16. |
+| **DEC-IA-31** | Usar Testcontainers para la integración. | **Rechazada** | Requiere Docker-in-Docker en CI y arranque más lento. Se usó un servicio PostgreSQL 16 y `docker-compose.test.yml` para desarrollo local. |
+| **DEC-IA-32** | Mantener el placeholder de tests del frontend. | **Rechazada** | Se añadieron Vitest, React Testing Library y jsdom con 10 pruebas reales sobre `apiClient`, `AuthContext`, `zodResolver` y `DisbursementForm`. |
+| **DEC-IA-33** | Publicar Swagger con DTOs duplicados. | **Rechazada** | El documento OpenAPI se genera desde los schemas Zod compartidos con `@asteasolutions/zod-to-openapi`, sin duplicar contratos. |
+| **DEC-IA-34** | Desactivar el rate limit de login globalmente para las pruebas. | **Rechazada** | El bypass `DISABLE_LOGIN_RATE_LIMIT` solo se aplica cuando `NODE_ENV !== 'production'`; la protección se mantiene intacta en producción y el comportamiento se prueba en integración. |
+| **DEC-IA-35** | Parsear como texto todas las respuestas HTTP del helper de integración. | **Rechazada** | Las respuestas binarias (PDF) se devuelven como `Response` antes de consumir el cuerpo; los errores sí se leen como texto para conservar el mensaje. |
+| **DEC-IA-36** | Mockear la API en las pruebas E2E para mayor velocidad. | **Rechazada** | Playwright levanta la API compilada y PostgreSQL reales en puertos aislados (`4300`/`5173`) con migraciones y seed, de modo que se validan sesión, cookies y RBAC de extremo a extremo. |
+| **DEC-IA-37** | Localizar los campos del login por placeholder o posición. | **Rechazada** | Se añadieron `id`/`htmlFor` a los labels y las pruebas usan `getByLabel` con coincidencia exacta; además de estabilizar E2E, mejora la accesibilidad del formulario. |

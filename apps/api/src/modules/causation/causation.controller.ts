@@ -14,6 +14,10 @@ import { RolesGuard } from '../../infrastructure/auth/roles.guard.js';
 import { Roles } from '../../infrastructure/auth/roles.decorator.js';
 import { ZodValidationPipe } from '../../infrastructure/validation/zod-validation.pipe.js';
 import { UuidParam, UuidQuery } from '../../infrastructure/validation/uuid-param.decorator.js';
+import {
+  buildAuditActor,
+  type AuthenticatedRequest,
+} from '../../infrastructure/auth/audit-actor.js';
 
 @Controller('causation')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -32,9 +36,9 @@ export class CausationController {
   @Roles(UserRole.GENERADOR)
   async generateBatch(
     @Body(new ZodValidationPipe(generateCausationBatchSchema)) body: GenerateCausationBatchInput,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
-    return this.causationService.generateBatch(body, req.user.id);
+    return this.causationService.generateBatch(body, buildAuditActor(req));
   }
 
   @Get('batches')

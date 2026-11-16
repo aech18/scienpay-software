@@ -108,7 +108,7 @@
 - **Fase 4 — Testing y calidad (6 tareas):** suite de integración versionada y en CI, E2E con Playwright, stress test FIFO, lint/formato/typecheck bloqueantes, OpenAPI desde Zod y cierre de deuda técnica (`SOL` transaccional, `notes`, tests frontend reales).
 - **Fase 5 — Pulimiento y entrega (6 tareas):** seed alineado a los 6 escenarios con verificación automática, guía de despliegue Docker Compose + Fly.io, manuales por rol, auditoría de la bitácora IA, demo grabada y preparación de defensa.
 - **Ajustes respecto del plan original:** se parte de la suite externa 158/158 en lugar de Testcontainers; se elige Playwright en lugar de Cypress; se incorpora la deuda técnica documentada en las Fases 1–3; la guía de despliegue cubre la infraestructura real (Docker Compose + Fly.io).
-- **Estado:** 12 tareas definidas, 0 ejecutadas. No se modificó `main`.
+- **Estado:** Fases 1–3 cerradas (17/17); Fase 4 cerrada (6/6); Fase 5 pendiente (0/6). No se modificó `main`.
 
 ---
 
@@ -125,7 +125,7 @@ El equipo trabaja bajo el modelo **GitFlow Adaptado**, respetando las siguientes
 | [`chore/setup-monorepo`](https://github.com/bracebalDev/scienpay-software/tree/chore/setup-monorepo) | Workspaces, Zod, TypeScript, ADRs | Completada y subida |
 | [`chore/devops-docker-ci`](https://github.com/bracebalDev/scienpay-software/tree/chore/devops-docker-ci) | Docker multi-stage, Nginx, CI Actions | Completada y subida |
 | [`feature/frontend-responsive`](https://github.com/bracebalDev/scienpay-software/tree/feature/frontend-responsive) | Notion Workspace, Login, Timer 5 min, Vistas RBAC | Completada y subida |
-| `plan/execution-tracking` | Ejecución de Fases 1–3 y definición de Fases 4–5 | Completada (Fases 1–3); Fases 4–5 definidas |
+| `plan/execution-tracking` | Ejecución de Fases 1–4 | Completada (Fases 1–4); Fase 5 pendiente |
 
 ---
 
@@ -153,13 +153,27 @@ Para clonar y levantar el proyecto en sus máquinas locales:
 4. **Credenciales de Prueba:**
    - Consultar el archivo local `docs/privado-credenciales-pruebas.md` (no commiteado por seguridad) o desplegar el acordeón inferior en la pantalla de login.
 
+### 15 de Noviembre de 2026
+
+#### Fase 4: Calidad, OpenAPI, deuda técnica e infraestructura de integración
+
+- **Lint y formato:** se añadió ESLint flat config en la raíz, Prettier y scripts `lint`, `format` y `format:check` en raíz y workspaces. `npm run lint` queda en 0 errores (12 advertencias heredadas) y `npm run format:check` pasa. El CI ejecuta ambos como pasos bloqueantes. La decisión se documentó en `docs/decisiones/ADR-008-calidad-y-ci.md`.
+- **OpenAPI:** documento generado desde los schemas Zod con `@asteasolutions/zod-to-openapi`, disponible en `/api/docs` y `/api/docs.json`, con 43 paths, 21 schemas y seguridad bearer. Test de contrato en `apps/api/test/foundation/openapi.test.ts`.
+- **Deuda técnica:** migración `0005_request_sequences_and_notes.sql` con contador transaccional `request_sequences` y función `next_request_number(year)`, más columna `payment_requests.notes`. `createRequest` genera el código dentro de la transacción y persiste las notas; el tipo del frontend las expone.
+- **Tests frontend:** Vitest + React Testing Library + jsdom con 10 pruebas reales sobre `apiClient`, `AuthContext`, `zodResolver` y `DisbursementForm`; se eliminó el placeholder.
+- **Integración versionada:** `docker-compose.test.yml`, runner `apps/api/scripts/run-integration.mjs`, helpers y suites por dominio (`auth`, `catalogs`, `security`, `financial-flow`, `petty-cash`, `fifo-concurrency`). Scripts `test:integration`, `db:test:up` y `db:test:down`, y job `integration` en CI con PostgreSQL 16.
+- **Concurrencia FIFO:** test que lanza 20 desembolsos concurrentes sobre la misma deuda durante 10 repeticiones y verifica sobrepago, saldos negativos y cuadratura por SQL.
+- **Verificación local:** `npm run typecheck` sin errores, 98/98 tests de API, 10/10 tests web, lint y formato correctos.
+- **Integración ejecutada:** con Docker 28.4.0 y PostgreSQL 16 en `55432`, `npm run test:integration` pasó **13/13 tests, 0 fallos, 20.4 s**. La prueba FIFO de 20 desembolsos concurrentes × 10 repeticiones pasó en 19.8 s. Se corrigieron la invocación de `tsx` en Windows, el rate limit compartido de login (bypass solo fuera de producción) y las expectativas de estado HTTP.
+- **E2E con Playwright:** configuración en `apps/web/playwright.config.ts` y seis pruebas en `apps/web/e2e` (credenciales inválidas, restauración de sesión, cierre con confirmación y navegación por cada rol). Ejecución local **6/6 PASS** en 25.1 s; job `e2e` agregado al CI con PostgreSQL 16 y Chromium.
+
 ## Estado final
 
 - Fases 1–3 completadas (17/17 tareas).
-- Fases 4–5 redefinidas en `docs/HANDOFF.md` (secciones 10 y 11): 12 tareas definidas (6 + 6), 0 ejecutadas.
-- Integración validada contra PostgreSQL 16 aislado (`scienpay_verify_db`, puerto 55432): **158/158 PASS** (corrida del 2026-11-08 y reejecución del 2026-11-09).
-- Backend: 87/87 tests; typecheck y build de API, shared y web sin errores (reverificados el 2026-11-09).
+- Fase 4 completada (6/6 tareas): integración versionada, E2E, concurrencia FIFO, lint/CI, OpenAPI y deuda técnica.
+- Integración versionada validada contra PostgreSQL 16 aislado (`scienpay_test`, puerto 55432): **13/13 PASS** (2026-11-15). La suite externa histórica se mantiene en **158/158 PASS** (2026-11-08/09).
+- E2E validado con Chromium: **6/6 PASS** (2026-11-15).
+- Backend: 98/98 tests; frontend: 10/10 tests; typecheck y build de API, shared y web sin errores.
 - Documentación actualizada en `docs/HANDOFF.md`, `docs/avances.md`, `docs/bitacora_ia.md` y `docs/uso-de-ia.md`.
-- Sin tareas pendientes ni bloqueos dentro del alcance de Fases 1–3. Las Fases 4–5 quedan pendientes de autorización explícita.
 
 > Reejecución del 2026-11-09: Docker Desktop disponible; migraciones aplicadas de forma idempotente, seed omitido por datos existentes y **158/158 PASS, 0 FAIL** contra el mismo contenedor aislado.

@@ -12,13 +12,22 @@ import {
   RotateCcw,
   Plus,
   Filter,
+  Pencil,
+  UserX,
+  UserCheck,
 } from 'lucide-react';
-import { useResetUserAttempts, useUnlockUser, useUsers } from '../../hooks/useUsers.js';
+import {
+  useDeactivateUser,
+  useReactivateUser,
+  useResetUserAttempts,
+  useUnlockUser,
+  useUsers,
+} from '../../hooks/useUsers.js';
 import { useAuditLogs } from '../../hooks/useAudit.js';
 import { useToast } from '../../context/ToastContext.js';
 import { getApiErrorMessage } from '../../lib/apiClient.js';
 import { formatDateTime } from '../../lib/format.js';
-import type { AuditFilters } from '../../types/api.types.js';
+import type { AuditFilters, UserAccount } from '../../types/api.types.js';
 import { PageHeader, SectionBanner } from '../ui/PageHeader.js';
 import { EmptyState, ErrorState, LoadingState, StatusBadge, statusTone } from '../ui/Feedback.js';
 import { Button, TextInput } from '../ui/FormControls.js';
@@ -34,8 +43,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab }) => {
   const usersQuery = useUsers();
   const unlockUser = useUnlockUser();
   const resetAttempts = useResetUserAttempts();
+  const deactivateUser = useDeactivateUser();
+  const reactivateUser = useReactivateUser();
 
   const [showCreateUser, setShowCreateUser] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
   const [draftFilters, setDraftFilters] = useState({
     entity: '',
     action: '',
@@ -63,6 +75,27 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab }) => {
     }
   };
 
+  const handleDeactivate = async (id: string, username: string) => {
+    if (!window.confirm(`¿Desactivar la cuenta ${username}? El usuario no podrá iniciar sesión.`)) {
+      return;
+    }
+    try {
+      await deactivateUser.mutateAsync(id);
+      showToast(`Cuenta ${username} desactivada`, 'success');
+    } catch (error) {
+      showToast(getApiErrorMessage(error), 'error');
+    }
+  };
+
+  const handleReactivate = async (id: string, username: string) => {
+    try {
+      await reactivateUser.mutateAsync(id);
+      showToast(`Cuenta ${username} reactivada`, 'success');
+    } catch (error) {
+      showToast(getApiErrorMessage(error), 'error');
+    }
+  };
+
   const applyFilters = (event: React.FormEvent) => {
     event.preventDefault();
     setAuditFilters({
@@ -82,8 +115,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab }) => {
         title="Segregación de Funciones: Perfil Administrador del Sistema"
       >
         El Administrador gestiona usuarios, parámetros y catálogos globales. Por norma de seguridad
-        financiera, <strong>no participa en operaciones de dinero</strong> (no formula causaciones, no
-        crea solicitudes, no aprueba ni desembolsa fondos).
+        financiera, <strong>no participa en operaciones de dinero</strong> (no formula causaciones,
+        no crea solicitudes, no aprueba ni desembolsa fondos).
       </SectionBanner>
 
       {activeTab === 'usuarios' && (
@@ -135,7 +168,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab }) => {
                     const isBlocked = user.permanentLock;
 
                     return (
-                      <tr key={user.id} className="hover:bg-[#FBFBFA] dark:hover:bg-[#252525] transition">
+                      <tr
+                        key={user.id}
+                        data-testid={`user-row-${user.username}`}
+                        className="hover:bg-[#FBFBFA] dark:hover:bg-[#252525] transition"
+                      >
                         <td className="py-3 px-4 font-medium text-[#37352F] dark:text-white">
                           <div className="flex items-center space-x-2">
                             <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-[#2A2A2A] text-slate-700 dark:text-slate-300 flex items-center justify-center font-bold text-[10px]">
@@ -157,8 +194,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab }) => {
                               user.role === 'ADMIN'
                                 ? 'violet'
                                 : user.role === 'GENERADOR'
-                                ? 'blue'
-                                : 'green'
+                                  ? 'blue'
+                                  : 'green'
                             }
                           />
                         </td>
@@ -168,15 +205,20 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab }) => {
                               user.failedAttempts === 0
                                 ? 'bg-slate-100 dark:bg-[#2A2A2A] text-slate-600 dark:text-slate-300'
                                 : user.failedAttempts < 3
-                                ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'
-                                : 'bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 font-bold'
+                                  ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'
+                                  : 'bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 font-bold'
                             }`}
                           >
                             {user.failedAttempts} / 4
                           </span>
                         </td>
                         <td className="py-3 px-4">
-                          {isBlocked ? (
+                          {!user.isActive ? (
+                            <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded bg-slate-200 dark:bg-[#2A2A2A] text-slate-700 dark:text-slate-300 font-semibold text-[10px]">
+                              <UserX className="w-3 h-3" />
+                              <span>Desactivado</span>
+                            </span>
+                          ) : isBlocked ? (
                             <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 font-semibold text-[10px]">
                               <ShieldAlert className="w-3 h-3" />
                               <span>Bloqueado (4to intento)</span>
@@ -194,38 +236,75 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab }) => {
                           )}
                         </td>
                         <td className="py-3 px-4 text-right">
-                          {isBlocked || user.isLocked ? (
-                            <Button
-                              size="sm"
-                              variant="danger"
-                              onClick={() => void handleUnlock(user.id, user.username)}
-                              disabled={unlockUser.isPending}
-                            >
-                              <Unlock className="w-3 h-3" />
-                              <span>Desbloquear Usuario</span>
-                            </Button>
-                          ) : user.failedAttempts > 0 ? (
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => void handleReset(user.id, user.username)}
-                              disabled={resetAttempts.isPending}
-                            >
-                              <RotateCcw className="w-3 h-3" />
-                              <span>Reset Intentos</span>
-                            </Button>
-                          ) : (
-                            <span className="text-[11px] text-[#9B9A97] dark:text-[#787774]">
-                              Sin acciones
-                            </span>
-                          )}
+                          <div className="flex items-center justify-end gap-2">
+                            {!user.isActive ? (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                data-testid={`reactivate-user-${user.username}`}
+                                onClick={() => void handleReactivate(user.id, user.username)}
+                                disabled={reactivateUser.isPending}
+                              >
+                                <UserCheck className="w-3 h-3" />
+                                <span>Reactivar</span>
+                              </Button>
+                            ) : (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  data-testid={`edit-user-${user.username}`}
+                                  onClick={() => setEditingUser(user)}
+                                  disabled={reactivateUser.isPending}
+                                >
+                                  <Pencil className="w-3 h-3" />
+                                  <span>Editar</span>
+                                </Button>
+                                {isBlocked || user.isLocked ? (
+                                  <Button
+                                    size="sm"
+                                    variant="danger"
+                                    data-testid={`unlock-user-${user.username}`}
+                                    onClick={() => void handleUnlock(user.id, user.username)}
+                                    disabled={unlockUser.isPending}
+                                  >
+                                    <Unlock className="w-3 h-3" />
+                                    <span>Desbloquear Usuario</span>
+                                  </Button>
+                                ) : user.failedAttempts > 0 ? (
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    data-testid={`reset-user-${user.username}`}
+                                    onClick={() => void handleReset(user.id, user.username)}
+                                    disabled={resetAttempts.isPending}
+                                  >
+                                    <RotateCcw className="w-3 h-3" />
+                                    <span>Reset Intentos</span>
+                                  </Button>
+                                ) : null}
+                                <Button
+                                  size="sm"
+                                  variant="danger"
+                                  data-testid={`deactivate-user-${user.username}`}
+                                  onClick={() => void handleDeactivate(user.id, user.username)}
+                                  disabled={deactivateUser.isPending}
+                                >
+                                  <UserX className="w-3 h-3" />
+                                  <span>Desactivar</span>
+                                </Button>
+                              </>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
-              {usersQuery.data.length === 0 && <EmptyState message="No hay usuarios registrados." />}
+              {usersQuery.data.length === 0 && (
+                <EmptyState message="No hay usuarios registrados." />
+              )}
             </div>
           )}
         </div>
@@ -266,7 +345,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab }) => {
               <div className="text-lg font-bold text-[#37352F] dark:text-white">HALF_UP</div>
               <p className="text-[11px] text-[#787774] dark:text-[#9B9A97] mt-1">
                 Redondeo a 2 decimales con desempate hacia arriba, aplicado por{' '}
-                <code className="bg-slate-100 dark:bg-[#2C2C2C] px-1 rounded">CausationCalculator</code>.
+                <code className="bg-slate-100 dark:bg-[#2C2C2C] px-1 rounded">
+                  CausationCalculator
+                </code>
+                .
               </p>
             </div>
 
@@ -282,8 +364,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab }) => {
               </div>
               <p className="text-[11px] text-[#787774] dark:text-[#9B9A97] mt-1">
                 Refresh tokens rotativos con banderas{' '}
-                <code className="bg-slate-100 dark:bg-[#2C2C2C] px-1 rounded">HttpOnly, SameSite</code> y
-                detección de replay.
+                <code className="bg-slate-100 dark:bg-[#2C2C2C] px-1 rounded">
+                  HttpOnly, SameSite
+                </code>{' '}
+                y detección de replay.
               </p>
             </div>
           </div>
@@ -393,7 +477,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab }) => {
                   </thead>
                   <tbody className="divide-y divide-[#EDEDEB] dark:divide-[#2F2F2F]">
                     {auditQuery.data.data.map((log) => (
-                      <tr key={log.id} className="hover:bg-[#FBFBFA] dark:hover:bg-[#252525] transition">
+                      <tr
+                        key={log.id}
+                        className="hover:bg-[#FBFBFA] dark:hover:bg-[#252525] transition"
+                      >
                         <td className="py-2.5 px-4 font-mono text-[11px] text-[#787774] dark:text-[#9B9A97]">
                           {formatDateTime(log.createdAt)}
                         </td>
@@ -401,7 +488,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab }) => {
                           {log.userEmail || 'Sistema'}
                         </td>
                         <td className="py-2.5 px-4">
-                          <StatusBadge label={log.userRole || 'N/A'} tone={statusTone(log.userRole)} />
+                          <StatusBadge
+                            label={log.userRole || 'N/A'}
+                            tone={statusTone(log.userRole)}
+                          />
                         </td>
                         <td className="py-2.5 px-4 font-mono text-[11px] font-semibold text-[#37352F] dark:text-white">
                           {log.action}
@@ -462,6 +552,15 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab }) => {
         onClose={() => setShowCreateUser(false)}
       >
         <UserForm onSuccess={() => setShowCreateUser(false)} />
+      </Modal>
+
+      <Modal
+        open={Boolean(editingUser)}
+        title="Editar Usuario"
+        subtitle="Actualice los datos de la cuenta. El nombre de usuario se deriva del correo."
+        onClose={() => setEditingUser(null)}
+      >
+        {editingUser && <UserForm user={editingUser} onSuccess={() => setEditingUser(null)} />}
       </Modal>
     </div>
   );

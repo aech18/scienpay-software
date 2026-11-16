@@ -1,12 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Patch,
-  Post,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import {
   UserRole,
   createPettyCashSchema,
@@ -24,6 +16,10 @@ import { RolesGuard } from '../../infrastructure/auth/roles.guard.js';
 import { Roles } from '../../infrastructure/auth/roles.decorator.js';
 import { ZodValidationPipe } from '../../infrastructure/validation/zod-validation.pipe.js';
 import { UuidParam } from '../../infrastructure/validation/uuid-param.decorator.js';
+import {
+  buildAuditActor,
+  type AuthenticatedRequest,
+} from '../../infrastructure/auth/audit-actor.js';
 
 @Controller('petty-cash')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -52,8 +48,9 @@ export class PettyCashController {
   @Roles(UserRole.RECEPTOR)
   async createPettyCash(
     @Body(new ZodValidationPipe(createPettyCashSchema)) body: CreatePettyCashInput,
+    @Req() req: AuthenticatedRequest,
   ) {
-    return this.pettyCashService.createPettyCash(body);
+    return this.pettyCashService.createPettyCash(body, buildAuditActor(req));
   }
 
   @Post(':id/periods')
@@ -61,9 +58,9 @@ export class PettyCashController {
   async openPeriod(
     @UuidParam() id: string,
     @Body(new ZodValidationPipe(openPettyCashPeriodSchema)) body: OpenPettyCashPeriodInput,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
-    return this.pettyCashService.openPeriod(id, body, req.user.id);
+    return this.pettyCashService.openPeriod(id, body, req.user!.id!, buildAuditActor(req));
   }
 
   @Post('periods/:periodId/vouchers')
@@ -71,21 +68,26 @@ export class PettyCashController {
   async requestVoucher(
     @UuidParam('periodId') periodId: string,
     @Body(new ZodValidationPipe(requestPettyCashVoucherSchema)) body: RequestPettyCashVoucherInput,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
-    return this.pettyCashService.requestVoucher(periodId, body, req.user.fullName || 'Solicitante');
+    return this.pettyCashService.requestVoucher(
+      periodId,
+      body,
+      req.user!.fullName || 'Solicitante',
+      buildAuditActor(req),
+    );
   }
 
   @Patch('vouchers/:id/approve')
   @Roles(UserRole.RECEPTOR)
-  async approveVoucher(@UuidParam() id: string, @Req() req: any) {
-    return this.pettyCashService.approveVoucher(id, req.user.id);
+  async approveVoucher(@UuidParam() id: string, @Req() req: AuthenticatedRequest) {
+    return this.pettyCashService.approveVoucher(id, req.user!.id!, buildAuditActor(req));
   }
 
   @Patch('vouchers/:id/disburse')
   @Roles(UserRole.RECEPTOR)
-  async disburseVoucher(@UuidParam() id: string, @Req() req: any) {
-    return this.pettyCashService.disburseVoucher(id, req.user.id);
+  async disburseVoucher(@UuidParam() id: string, @Req() req: AuthenticatedRequest) {
+    return this.pettyCashService.disburseVoucher(id, req.user!.id!, buildAuditActor(req));
   }
 
   @Patch('vouchers/:id/render')
@@ -93,14 +95,14 @@ export class PettyCashController {
   async renderVoucher(
     @UuidParam() id: string,
     @Body(new ZodValidationPipe(renderPettyCashVoucherSchema)) body: RenderPettyCashVoucherInput,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
-    return this.pettyCashService.renderVoucher(id, body, req.user.id);
+    return this.pettyCashService.renderVoucher(id, body, req.user!.id!, buildAuditActor(req));
   }
 
   @Patch('periods/:periodId/close')
   @Roles(UserRole.RECEPTOR)
-  async closePeriod(@UuidParam('periodId') periodId: string, @Req() req: any) {
-    return this.pettyCashService.closePeriod(periodId, req.user.id);
+  async closePeriod(@UuidParam('periodId') periodId: string, @Req() req: AuthenticatedRequest) {
+    return this.pettyCashService.closePeriod(periodId, req.user!.id!, buildAuditActor(req));
   }
 }

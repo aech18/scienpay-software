@@ -2,9 +2,9 @@
 
 > **Proyecto:** Scienpay — Sistema de Control de Pagos y Asignaciones para Proyectos Científicos
 > **Rama de trabajo:** `plan/execution-tracking` (aislada de `main`)
-> **Alcance:** Fases 1–3 completadas (17/17). Fases 4–5 redefinidas el 2026-11-10 y pendientes de ejecución.
+> **Alcance:** Fases 1–4 completadas (17/17 + 6/6). Fase 5 pendiente de ejecución.
 > **Fecha de inicio de ejecución:** 2026-11-07
-> **Última actualización:** 2026-11-10
+> **Última actualización:** 2026-11-15
 > **Modelo de análisis y planificación:** Nemotron 3 Ultra (Free) vía OpenRouter en OpenCode.
 > **Modelo de ejecución de Fases 1–3:** DeepSeek V4.1 Flash Free vía OpenCode Zen.
 
@@ -234,17 +234,17 @@ Estos hallazgos sustituyen a las suposiciones del análisis inicial y son la bas
 
 ## 7. Métricas de progreso
 
-| Métrica | Estado actual (2026-11-10) | Objetivo de las Fases 4–5 |
+| Métrica | Estado actual (2026-11-15) | Objetivo de las Fases 4–5 |
 |---|---|---|
 | Tareas de Fases 1–3 | 17/17 completadas | Cerradas |
-| Tareas de Fase 4 | 0/6 | 6/6 |
+| Tareas de Fase 4 | 6/6 completadas | 6/6 |
 | Tareas de Fase 5 | 0/6 | 6/6 |
-| Tests unitarios backend | 87/87 pasando | Mantener 100 % |
-| Integración con PostgreSQL | Script externo 158/158; no corre en CI | Suite versionada y bloqueante en CI |
-| Tests frontend | Placeholder (`exit 0`) | Unitarios/componentes + E2E |
-| Lint | Sin ESLint; `npm run lint` no-op | `npm run lint` bloqueante en CI |
-| OpenAPI | No disponible | `/api/docs` generado desde Zod |
-| Deuda técnica conocida | `SOL` con `count + 1`, `notes` no persistido, tests placeholder | Cerrada o aceptada explícitamente |
+| Tests unitarios backend | 98/98 pasando | Mantener 100 % |
+| Integración con PostgreSQL | 13/13 PASS en suite versionada y CI | Suite versionada y bloqueante en CI |
+| Tests frontend | 10/10 unitarios + 6/6 E2E | Unitarios/componentes + E2E |
+| Lint | 0 errores (12 advertencias heredadas), bloqueante en CI | `npm run lint` bloqueante en CI |
+| OpenAPI | Disponible en `/api/docs` generado desde Zod | `/api/docs` generado desde Zod |
+| Deuda técnica conocida | Cerrada en 4.6 | Cerrada o aceptada explícitamente |
 
 ---
 
@@ -271,6 +271,10 @@ Estos hallazgos sustituyen a las suposiciones del análisis inicial y son la bas
 | 2026-11-08 | 3.6 Descarga de PDF | 🔴 Por hacer | 🟢 Completada | — | `apiClient.download` + hooks de recibo y solicitud. |
 | 2026-11-08 | 3.7 Errores globales y UX | 🔴 Por hacer | 🟢 Completada | — | `ToastProvider`, intercepción 401 y estados de carga/error/vacío. |
 | 2026-11-10 | Redefinición de Fases 4–5 | ⚪ Fuera de alcance | 🔴 Por hacer (0/12) | — | Se reemplaza el alcance recortado por un plan ajustado al estado real; ver secciones 10 y 11. |
+| 2026-11-15 | 4.1 Integración versionada | 🔴 Por hacer | 🟢 Completada | — | 13/13 tests PASS contra PostgreSQL 16 en `55432`; runner, helpers y suites versionadas. |
+| 2026-11-15 | 4.2 E2E con Playwright | 🔴 Por hacer | 🟢 Completada | — | 6/6 pruebas PASS con Chromium; API/Vite reales y job `e2e` en CI. |
+| 2026-11-15 | 4.3 Concurrencia FIFO | 🔴 Por hacer | 🟢 Completada | — | 20 desembolsos × 10 repeticiones PASS sin sobrepago ni saldos negativos. |
+| 2026-11-15 | 4.4–4.6 Calidad, OpenAPI y deuda técnica | 🔴 Por hacer | 🟢 Completada | — | Lint/formato/CI, OpenAPI desde Zod, `SOL` transaccional, `notes` y tests frontend. |
 
 ---
 
@@ -500,7 +504,7 @@ Estos hallazgos sustituyen a las suposiciones del análisis inicial y son la bas
 ## 12. Reglas no negociables
 
 1. Todo el trabajo se realiza en `plan/execution-tracking`; no se toca `main`.
-2. Las Fases 1–3 están cerradas. Las Fases 4–5 están definidas pero **no iniciadas**; su ejecución requiere autorización explícita y sigue el orden de dependencias de las secciones 10 y 11.
+2. Las Fases 1–4 están cerradas. La Fase 5 está definida pero **no iniciada**; su ejecución requiere autorización explícita y sigue el orden de dependencias de la sección 11.
 3. Cada decisión no trivial se documenta en este archivo o en un ADR.
 4. Cada tarea completada actualiza este documento, `avances.md` y `bitacora_ia.md`.
 5. `npm run typecheck`, `npm run test` y `npm run build` deben pasar antes de cerrar cada tarea. Desde 4.1, `npm run test:integration` también debe pasar.
@@ -514,14 +518,54 @@ Estos hallazgos sustituyen a las suposiciones del análisis inicial y son la bas
 
 ## 13. Estado actual y próximo paso
 
-- **Fases 1–3:** completadas (17/17 tareas).
-- **Backend:** 87/87 tests unitarios pasando.
+- **Fases 1–4:** completadas (17/17 + 6/6 tareas).
+- **Backend:** 98/98 tests unitarios pasando.
 - **Typecheck:** API, shared y web sin errores.
 - **Build:** API, shared y web compilan correctamente.
-- **Integración:** 158/158 verificaciones PASS contra PostgreSQL 16 aislado (`scienpay_verify_db`, puerto `55432`), ejecutadas el 2026-11-08 y **reejecutadas con éxito el 2026-11-09**.
-- **Frontend:** conectado a la API real, sin mocks de producción.
-- **Fases 4–5:** 12 tareas definidas (6 + 6), 0 ejecutadas.
-- **Deuda técnica a cerrar en 4.6:** numeración transaccional de `SOL`, persistencia de `notes` y tests frontend reales.
+- **Integración:** 13/13 tests PASS en la suite versionada contra PostgreSQL 16 (`scienpay_test`, puerto `55432`), ejecutada el 2026-11-15. La suite externa histórica se mantiene en 158/158.
+- **Frontend:** conectado a la API real, sin mocks de producción; 10/10 tests unitarios y 6/6 E2E.
+- **Fase 5:** 6 tareas definidas, 0 ejecutadas.
+- **Deuda técnica:** cerrada en 4.6 (numeración transaccional de `SOL`, persistencia de `notes` y tests frontend reales).
 - **Evidencia disponible:** PR #1 (https://github.com/bracebalDev/scienpay-software/pull/1), CI verde y 6 commits de `AngBan2x`.
-- **Próximo paso:** autorizar **4.1** y mover la suite de 158 verificaciones al repositorio con un job de CI.
+
+---
+
+## 14. Actualización de ejecución de Fase 4 (2026-11-15)
+
+### Completado
+
+- **4.4 Lint, formato y CI:** `eslint.config.mjs` flat config, `.prettierrc`, `.prettierignore`, scripts `lint`/`format`/`format:check` en raíz y workspaces. `npm run lint` termina con 0 errores (12 advertencias heredadas) y `npm run format:check` pasa. CI incorpora `format:check` y `lint` como pasos bloqueantes. Decisión registrada en `docs/decisiones/ADR-008-calidad-y-ci.md`.
+- **4.5 OpenAPI desde Zod:** documento generado con `@asteasolutions/zod-to-openapi`, publicado en `/api/docs` y `/api/docs.json`; 43 paths y 21 schemas; seguridad bearer declarada. Test de contrato en `apps/api/test/foundation/openapi.test.ts`.
+- **4.6 Deuda técnica:** migración `0005_request_sequences_and_notes.sql` con `request_sequences` + `next_request_number(year)` y columna `payment_requests.notes`; `createRequest` usa la secuencia y persiste `notes` dentro de la transacción; frontend tipado con `notes`. Tests frontend reales con Vitest/RTL: 4 archivos, 10 pruebas.
+- **4.1 Infraestructura de integración (completada):** `docker-compose.test.yml` (PostgreSQL 16 en `55432`), `apps/api/scripts/run-integration.mjs`, helpers reutilizables y suites `auth`, `catalogs`, `security`, `financial-flow`, `petty-cash` y `fifo-concurrency`. Scripts `test:integration`, `db:test:up` y `db:test:down`; job `integration` en CI con servicio PostgreSQL 16.
+- **4.3 Test de concurrencia FIFO (completado y ejecutado):** `fifo-concurrency.test.ts` lanza 20 desembolsos concurrentes sobre la misma deuda, 10 repeticiones, y verifica por SQL sobrepago, saldos negativos y cuadratura.
+
+### Verificación local
+
+- `npm run typecheck`: API, shared y web sin errores.
+- `npm run test --workspace=@scienpay/api`: 98/98 pruebas.
+- `npm run test --workspace=@scienpay/web`: 10/10 pruebas.
+- `npm run lint`: 0 errores, 12 advertencias.
+- `npm run format:check`: pasa.
+- `npm run test:integration`: ejecutado y aprobado; resultado en la sección siguiente.
+
+### Pendiente
+
+- **Fase 5:** sin iniciar.
+
+### Estado actualizado
+
+- Fases 1–3: 17/17 completadas.
+- Fase 4: 6/6 completadas y verificadas localmente (integración, E2E, FIFO, lint/CI, OpenAPI y deuda técnica).
+- Tests backend: 98/98. Tests frontend: 10/10.
+
+### Resultado real de integración (2026-11-15)
+
+- Docker 28.4.0 disponible; `docker compose -f docker-compose.test.yml up -d --wait` levantó PostgreSQL 16 en `55432` y quedó `healthy`.
+- `npm run test:integration` ejecutó migraciones, seed, API compilada y las seis suites: **13/13 tests PASS, 0 FAIL** en **20.4 s**.
+- Suite de concurrencia FIFO: **20 desembolsos concurrentes × 10 repeticiones PASS** en 19.8 s, sin sobrepago, sin saldos negativos y con cuadratura SQL exacta.
+- Correcciones aplicadas durante la ejecución: invocación directa de `tsx` sin `shell` para evitar rutas con espacios/comas, bypass del rate limit de login solo en `NODE_ENV !== 'production'` con `DISABLE_LOGIN_RATE_LIMIT=true`, expectativa 201 para `POST /causation/preview`, contraseña inválida con longitud válida y lectura de respuestas binarias antes de consumir el cuerpo.
+- **4.1 y 4.3 quedan completadas y verificadas localmente.**
+- **4.2 Playwright/E2E completada:** configuración en `apps/web/playwright.config.ts`, seis pruebas en `apps/web/e2e` (credenciales inválidas, restauración de sesión, cierre con confirmación y navegación por cada rol) y job `e2e` en CI con PostgreSQL 16. Resultado local: **6/6 PASS** en ~27 s con Chromium.
+- Fase 4 completa (6/6 tareas). Próximo paso: iniciar Fase 5 (seed verificado, despliegue, manuales, auditoría de bitácora, demo y defensa).
 - **Bloqueos:** ninguno. Docker Desktop es necesario para integración/E2E locales; en CI se usa un servicio PostgreSQL 16.

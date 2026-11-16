@@ -3,6 +3,13 @@ import { DatabaseService } from '../../infrastructure/database/database.service.
 import { auditLog } from '../../infrastructure/database/schema.js';
 import { and, count, desc, eq, gte, lte } from 'drizzle-orm';
 
+export interface AuditActor {
+  userId: string | null;
+  userEmail: string;
+  userRole: string;
+  ipAddress: string;
+}
+
 export interface RecordAuditEventInput {
   userId?: string | null;
   userEmail?: string;

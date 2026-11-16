@@ -20,6 +20,7 @@ import { users, refreshTokens } from '../database/schema.js';
 import { and, eq, isNull, or, sql } from 'drizzle-orm';
 import { JwtAuthGuard } from './jwt-auth.guard.js';
 import { LoginRateLimiter } from './login-rate-limiter.js';
+import { AuditService } from '../../modules/audit/audit.service.js';
 
 const REFRESH_COOKIE_NAME = 'scienpay_refresh';
 const REFRESH_COOKIE_PATH = '/api/v1/auth';
@@ -33,6 +34,7 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly passwordService: PasswordService,
     private readonly databaseService: DatabaseService,
+    private readonly auditService: AuditService,
   ) {}
 
   private getClientIp(req: Request): string {
@@ -65,7 +67,11 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    this.loginRateLimiter.check(this.getClientIp(req));
+    const skipRateLimit =
+      process.env.NODE_ENV !== 'production' && process.env.DISABLE_LOGIN_RATE_LIMIT === 'true';
+    if (!skipRateLimit) {
+      this.loginRateLimiter.check(this.getClientIp(req));
+    }
 
     const parseResult = loginSchema.safeParse(body);
     if (!parseResult.success) {
@@ -90,11 +96,47 @@ export class AuthController {
       .limit(1);
 
     if (!user) {
+      await this.auditService.recordEvent({
+        action: 'LOGIN_FALLIDO',
+        entity: 'auth',
+        entityId: undefined,
+        oldValues: null,
+        newValues: { reason: 'USUARIO_NO_ENCONTRADO', identifier: normalizedIdentifier },
+        ipAddress: this.getClientIp(req),
+      });
       throw new UnauthorizedException('CREDENCIALES_INVALIDAS: Usuario o contraseña incorrectos');
+    }
+
+    if (!user.isActive) {
+      await this.auditService.recordEvent({
+        userId: user.id,
+        userEmail: user.email,
+        userRole: user.role,
+        action: 'LOGIN_FALLIDO',
+        entity: 'auth',
+        entityId: user.id,
+        oldValues: null,
+        newValues: { reason: 'USUARIO_INACTIVO' },
+        ipAddress: this.getClientIp(req),
+      });
+      throw new UnauthorizedException(
+        'USUARIO_INACTIVO: La cuenta está desactivada. Contacte al Administrador del Sistema.',
+      );
     }
 
     // 1. Verificar bloqueo definitivo (4to error)
     if (user.permanentLock) {
+      await this.auditService.recordEvent({
+        userId: user.id,
+        userEmail: user.email,
+        userRole: user.role,
+        action: 'LOGIN_FALLIDO',
+        entity: 'auth',
+        entityId: user.id,
+        oldValues: null,
+        newValues: { reason: 'USUARIO_BLOQUEADO_PERMANENTE' },
+        ipAddress: this.getClientIp(req),
+      });
       throw new UnauthorizedException(
         'USUARIO_BLOQUEADO: Cuenta bloqueada por seguridad. Contacte al Administrador del Sistema.',
       );
@@ -106,6 +148,17 @@ export class AuthController {
       const expiresAtMs = new Date(user.lockoutExpiresAt).getTime();
       if (expiresAtMs > now) {
         const remainingSecs = Math.ceil((expiresAtMs - now) / 1000);
+        await this.auditService.recordEvent({
+          userId: user.id,
+          userEmail: user.email,
+          userRole: user.role,
+          action: 'LOGIN_FALLIDO',
+          entity: 'auth',
+          entityId: user.id,
+          oldValues: null,
+          newValues: { reason: 'BLOQUEO_TEMPORAL', remainingSecs },
+          ipAddress: this.getClientIp(req),
+        });
         throw new UnauthorizedException(
           `BLOQUEO_TEMPORAL: Demasiados intentos fallidos. Espere ${remainingSecs} segundos antes de reintentar.`,
         );
@@ -120,7 +173,9 @@ export class AuthController {
         {
           failedAttempts: user.failedAttempts,
           isLocked: user.isLocked,
-          lockoutExpiresAt: user.lockoutExpiresAt ? new Date(user.lockoutExpiresAt).getTime() : null,
+          lockoutExpiresAt: user.lockoutExpiresAt
+            ? new Date(user.lockoutExpiresAt).getTime()
+            : null,
           permanentLock: user.permanentLock,
         },
         now,
@@ -138,6 +193,27 @@ export class AuthController {
           updatedAt: new Date(),
         })
         .where(eq(users.id, user.id));
+
+      await this.auditService.recordEvent({
+        userId: user.id,
+        userEmail: user.email,
+        userRole: user.role,
+        action: 'LOGIN_FALLIDO',
+        entity: 'auth',
+        entityId: user.id,
+        oldValues: {
+          failedAttempts: user.failedAttempts,
+          isLocked: user.isLocked,
+          permanentLock: user.permanentLock,
+        },
+        newValues: {
+          reason: 'CREDENCIALES_INVALIDAS',
+          failedAttempts: securityState.failedAttempts,
+          isLocked: securityState.isLocked,
+          permanentLock: securityState.permanentLock,
+        },
+        ipAddress: this.getClientIp(req),
+      });
 
       if (securityState.permanentLock) {
         throw new UnauthorizedException(
@@ -183,6 +259,18 @@ export class AuthController {
       tokenHash,
       familyId,
       expiresAt: refreshExpiresAt,
+    });
+
+    await this.auditService.recordEvent({
+      userId: user.id,
+      userEmail: user.email,
+      userRole: user.role,
+      action: 'INICIO_SESION',
+      entity: 'auth',
+      entityId: user.id,
+      oldValues: null,
+      newValues: { familyId, role: user.role },
+      ipAddress: this.getClientIp(req),
     });
 
     res.cookie(REFRESH_COOKIE_NAME, refreshToken, this.getRefreshCookieOptions());
@@ -236,9 +324,21 @@ export class AuthController {
         await tx
           .update(refreshTokens)
           .set({ revokedAt: now })
-          .where(
-            and(eq(refreshTokens.familyId, claims.familyId), isNull(refreshTokens.revokedAt)),
-          );
+          .where(and(eq(refreshTokens.familyId, claims.familyId), isNull(refreshTokens.revokedAt)));
+        await this.auditService.recordEvent(
+          {
+            userId: claims.id,
+            userEmail: claims.email,
+            userRole: claims.role,
+            action: 'REFRESH_TOKEN_DESCONOCIDO',
+            entity: 'refresh_tokens',
+            entityId: undefined,
+            oldValues: null,
+            newValues: { familyId: claims.familyId },
+            ipAddress: this.getClientIp(req),
+          },
+          tx,
+        );
         return { status: 'not_found' as const };
       }
 
@@ -247,9 +347,21 @@ export class AuthController {
         await tx
           .update(refreshTokens)
           .set({ revokedAt: now })
-          .where(
-            and(eq(refreshTokens.familyId, record.familyId), isNull(refreshTokens.revokedAt)),
-          );
+          .where(and(eq(refreshTokens.familyId, record.familyId), isNull(refreshTokens.revokedAt)));
+        await this.auditService.recordEvent(
+          {
+            userId: record.userId,
+            userEmail: claims.email,
+            userRole: claims.role,
+            action: 'TOKEN_REPLAY_DETECTADO',
+            entity: 'refresh_tokens',
+            entityId: record.id,
+            oldValues: { familyId: record.familyId },
+            newValues: { revokedFamily: true },
+            ipAddress: this.getClientIp(req),
+          },
+          tx,
+        );
         return { status: 'replay' as const };
       }
 
@@ -257,11 +369,48 @@ export class AuthController {
         return { status: 'expired' as const };
       }
 
+      const [account] = await tx
+        .select({
+          id: users.id,
+          email: users.email,
+          fullName: users.fullName,
+          role: users.role,
+          isActive: users.isActive,
+        })
+        .from(users)
+        .where(eq(users.id, record.userId))
+        .limit(1);
+
+      if (!account || !account.isActive) {
+        await tx
+          .update(refreshTokens)
+          .set({ revokedAt: now })
+          .where(and(eq(refreshTokens.familyId, record.familyId), isNull(refreshTokens.revokedAt)));
+        await this.auditService.recordEvent(
+          {
+            userId: account?.id ?? record.userId,
+            userEmail: account?.email ?? claims.email,
+            userRole: account?.role ?? claims.role,
+            action: 'REFRESH_CUENTA_INACTIVA',
+            entity: 'refresh_tokens',
+            entityId: record.id,
+            oldValues: { familyId: record.familyId },
+            newValues: {
+              accountFound: Boolean(account),
+              isActive: account?.isActive ?? false,
+            },
+            ipAddress: this.getClientIp(req),
+          },
+          tx,
+        );
+        return { status: 'inactive' as const };
+      }
+
       const userPayload = {
-        id: claims.id,
-        email: claims.email,
-        fullName: claims.fullName,
-        role: claims.role,
+        id: account.id,
+        email: account.email,
+        fullName: account.fullName,
+        role: account.role,
       };
 
       const { refreshToken: newRefreshToken, familyId } = this.authService.generateRefreshToken(
@@ -270,10 +419,7 @@ export class AuthController {
       );
       const newTokenHash = this.authService.hashRefreshToken(newRefreshToken);
 
-      await tx
-        .update(refreshTokens)
-        .set({ revokedAt: now })
-        .where(eq(refreshTokens.id, record.id));
+      await tx.update(refreshTokens).set({ revokedAt: now }).where(eq(refreshTokens.id, record.id));
 
       await tx.insert(refreshTokens).values({
         userId: record.userId,
@@ -281,6 +427,21 @@ export class AuthController {
         familyId,
         expiresAt: new Date(now.getTime() + REFRESH_TOKEN_TTL_MS),
       });
+
+      await this.auditService.recordEvent(
+        {
+          userId: account.id,
+          userEmail: account.email,
+          userRole: account.role,
+          action: 'RENOVACION_SESION',
+          entity: 'refresh_tokens',
+          entityId: record.id,
+          oldValues: null,
+          newValues: { familyId, role: account.role },
+          ipAddress: this.getClientIp(req),
+        },
+        tx,
+      );
 
       return {
         status: 'ok' as const,
@@ -300,6 +461,11 @@ export class AuthController {
       if (outcome.status === 'expired') {
         throw new UnauthorizedException(
           'REFRESH_TOKEN_EXPIRADO: La sesión expiró. Inicie sesión nuevamente.',
+        );
+      }
+      if (outcome.status === 'inactive') {
+        throw new UnauthorizedException(
+          'USUARIO_INACTIVO: La cuenta está desactivada. Contacte al Administrador del Sistema.',
         );
       }
       throw new UnauthorizedException(
@@ -325,6 +491,23 @@ export class AuthController {
         .update(refreshTokens)
         .set({ revokedAt: new Date() })
         .where(eq(refreshTokens.tokenHash, tokenHash));
+
+      try {
+        const claims = this.authService.verifyRefreshToken(refreshToken);
+        await this.auditService.recordEvent({
+          userId: claims.id,
+          userEmail: claims.email,
+          userRole: claims.role,
+          action: 'CIERRE_SESION',
+          entity: 'auth',
+          entityId: claims.id,
+          oldValues: null,
+          newValues: { familyId: claims.familyId },
+          ipAddress: this.getClientIp(req),
+        });
+      } catch {
+        void 0;
+      }
     }
 
     this.clearRefreshCookie(res);

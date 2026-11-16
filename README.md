@@ -168,6 +168,27 @@ npm run test
 npm run build
 ```
 
+### Pruebas de integración y E2E
+
+```bash
+# 1. Levantar PostgreSQL 16 aislado en el puerto 55432
+npm run db:test:up
+
+# 2. Integración: migraciones + seed + API compilada + suites (13 tests)
+npm run test:integration
+
+# 3. Instalar Chromium una sola vez
+npm run e2e:install
+
+# 4. E2E con Playwright (6 tests; levanta API y Vite automáticamente)
+npm run e2e
+
+# Apagar y eliminar el volumen de pruebas
+npm run db:test:down
+```
+
+Las pruebas E2E usan la misma base de pruebas (`scienpay_test`), la API en el puerto `4300` y Vite en `5173`. En CI se ejecutan con PostgreSQL 16 como servicio.
+
 ---
 
 ## 7. Decisiones de Arquitectura (ADRs)

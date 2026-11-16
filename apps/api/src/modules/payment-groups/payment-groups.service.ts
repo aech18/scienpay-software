@@ -3,10 +3,14 @@ import { DatabaseService } from '../../infrastructure/database/database.service.
 import { paymentGroups } from '../../infrastructure/database/schema.js';
 import { CreatePaymentGroupInput } from '@scienpay/shared';
 import { eq } from 'drizzle-orm';
+import { AuditService, type AuditActor } from '../audit/audit.service.js';
 
 @Injectable()
 export class PaymentGroupsService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async listPaymentGroups() {
     return this.databaseService.db.select().from(paymentGroups).orderBy(paymentGroups.name);
@@ -25,7 +29,7 @@ export class PaymentGroupsService {
     return group;
   }
 
-  async createPaymentGroup(input: CreatePaymentGroupInput) {
+  async createPaymentGroup(input: CreatePaymentGroupInput, actor: AuditActor) {
     const existing = await this.databaseService.db
       .select({ id: paymentGroups.id })
       .from(paymentGroups)
@@ -45,6 +49,23 @@ export class PaymentGroupsService {
         description: input.description || '',
       })
       .returning();
+
+    await this.auditService.recordEvent({
+      userId: actor.userId,
+      userEmail: actor.userEmail,
+      userRole: actor.userRole,
+      action: 'CREACION_GRUPO_PAGO',
+      entity: 'payment_groups',
+      entityId: created.id,
+      oldValues: null,
+      newValues: {
+        name: created.name,
+        periodicity: created.periodicity,
+        cutOffConfig: created.cutOffConfig,
+        description: created.description,
+      },
+      ipAddress: actor.ipAddress,
+    });
 
     return created;
   }
